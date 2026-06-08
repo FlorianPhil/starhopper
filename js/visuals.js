@@ -32,8 +32,6 @@ export function initVisuals() {
   for (let i = 0; i < MAXSTARS; i++) stars.push(newStar(true));
   resize();
   window.addEventListener("resize", resize, { passive: true });
-  // debug aid: snap canvas palette instantly to the active mode (used in validation)
-  window.__SHsnap = () => { for (const k in tgt) { cur[k] = Array.isArray(tgt[k]) ? tgt[k].slice() : tgt[k]; } };
 }
 
 function resize() {

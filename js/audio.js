@@ -48,7 +48,6 @@ export async function initAudio() {
   for (const k of Object.keys(AUDIO.loops)) loops.player(k).loop = true;
   try { shots.player("sonar").volume.value = -13; } catch (e) {}
   ready = true;
-  if (typeof window !== "undefined") window.__SHa = { beds, loops, signalSrc, state };
 }
 
 export async function unlock() { await Tone.start(); Tone.getContext().lookAhead = 0.02; }

@@ -154,7 +154,7 @@ function wireThrottle() {
   apply(0.55);
   const fromEvent = (e) => { const r = track.getBoundingClientRect(); return 1 - (e.clientY - r.top) / r.height; };
   let dragging = false;
-  const down = (e) => { dragging = true; knob.setPointerCapture?.(e.pointerId); apply(fromEvent(e)); };
+  const down = (e) => { dragging = true; apply(fromEvent(e)); try { knob.setPointerCapture?.(e.pointerId); } catch (_) {} };
   track.addEventListener("pointerdown", down);
   knob.addEventListener("pointerdown", down);
   window.addEventListener("pointermove", (e) => { if (dragging) apply(fromEvent(e)); });
