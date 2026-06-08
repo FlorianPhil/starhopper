@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#0c1320" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="STARHOPPER" />
+<meta name="description" content="STARHOPPER Flight Deck — a family starship cockpit for the road." />
+<title>STARHOPPER · Flight Deck</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="img/icon.svg" />
+<link rel="apple-touch-icon" href="img/icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@300;400;500;600&family=Saira+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/cockpit.css" />
+</head>
+<body data-mode="cruise" data-booted="false" data-engine="off" data-shields="off" data-scanner="off">
+
+<!-- ============ BOOT / IGNITION ============ -->
+<div id="boot" aria-hidden="false">
+  <div class="boot-frame">
+    <div class="boot-stamp"><span>HULL</span> SH-7 <span class="dot">/</span> <span>CLASS</span> FAMILY EXPLORER</div>
+    <h1 class="boot-brand">STAR<em>HOPPER</em></h1>
+    <p class="boot-tagline">Family Flight Deck</p>
+    <div class="boot-checklist" id="boot-check" aria-hidden="true">
+      <span data-k="reactor">REACTOR</span>
+      <span data-k="nav">NAV ARRAY</span>
+      <span data-k="life">LIFE SUPPORT</span>
+      <span data-k="audio">AUDIO BUS</span>
+    </div>
+    <button id="engage" type="button" aria-label="Power on the flight deck">
+      <span class="engage-ring"></span>
+      <span class="engage-core">
+        <span class="engage-label">ENGAGE</span>
+        <span class="engage-sub">tap to power on</span>
+      </span>
+    </button>
+    <p class="boot-foot">Sound on for the full ride.</p>
+  </div>
+</div>
+
+<!-- ============ FLIGHT DECK ============ -->
+<main id="deck" inert>
+
+  <!-- ---- STATUS STRIP ---- -->
+  <header id="status">
+    <div class="sys-id">
+      <span class="sys-id-name">STARHOPPER</span>
+      <span class="sys-id-hull">SH-7</span>
+    </div>
+    <div class="sys-mode">
+      <span class="sys-mode-tag">FLIGHT MODE</span>
+      <span class="sys-mode-name" id="mode-name">CRUISE</span>
+    </div>
+    <div class="sys-tele">
+      <div class="meter" data-m="pwr"><span class="meter-cap">PWR</span><span class="meter-bar"><i></i></span></div>
+      <div class="meter" data-m="hull"><span class="meter-cap">HULL</span><span class="meter-bar"><i></i></span></div>
+      <div class="meter" data-m="vel"><span class="meter-cap">VEL</span><span class="meter-bar"><i></i></span></div>
+    </div>
+    <div class="sys-actions">
+      <button id="btn-mute" class="ic-btn" type="button" aria-label="Mute audio" aria-pressed="false"><span class="ic ic-sound"></span></button>
+      <button id="btn-credits" class="ic-btn" type="button" aria-label="Credits"><span class="ic ic-info">i</span></button>
+    </div>
+  </header>
+
+  <!-- ---- CANOPY / SCOPE ---- -->
+  <section id="canopy">
+    <canvas id="scope"></canvas>
+    <div class="canopy-frame" aria-hidden="true"></div>
+    <div class="canopy-hud">
+      <div class="hud-tl"><span class="lbl">HDG</span><span id="hud-heading">000</span></div>
+      <div class="hud-tr"><span class="lbl">RNG</span><span id="hud-range">12.0<em>au</em></span></div>
+      <div class="hud-bl"><span class="lbl">CONTACTS</span><span id="hud-contacts">0</span></div>
+      <div class="hud-br"><span class="lbl">SECTOR</span><span id="hud-sector">G-04</span></div>
+    </div>
+    <div id="alert" role="status" aria-live="polite" data-show="false">
+      <span class="alert-ico"></span><span class="alert-text" id="alert-text"></span>
+    </div>
+    <aside id="throttle" aria-label="Throttle">
+      <span class="thr-cap">THR</span>
+      <div class="fader-track" id="thr-track">
+        <div class="fader-fill" id="thr-fill"></div>
+        <div class="fader-knob" id="thr-knob" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="55"></div>
+      </div>
+      <span class="thr-val" id="thr-val">55</span>
+    </aside>
+  </section>
+
+  <!-- ---- MODE SELECTOR ---- -->
+  <nav id="modes" aria-label="Flight mode">
+    <span class="mode-indicator" id="mode-indicator"></span>
+    <button class="mode-btn" data-mode="cruise" type="button" aria-pressed="true"><span class="mode-glyph cruise"></span><span class="mode-tx">CRUISE</span></button>
+    <button class="mode-btn" data-mode="combat" type="button" aria-pressed="false"><span class="mode-glyph combat"></span><span class="mode-tx">COMBAT</span></button>
+    <button class="mode-btn" data-mode="stealth" type="button" aria-pressed="false"><span class="mode-glyph stealth"></span><span class="mode-tx">STEALTH</span></button>
+    <button class="mode-btn" data-mode="warp" type="button" aria-pressed="false"><span class="mode-glyph warp"></span><span class="mode-tx">WARP</span></button>
+  </nav>
+
+  <!-- ---- INSTRUMENT CONSOLE ---- -->
+  <section id="console">
+    <div class="switchbank" role="group" aria-label="Systems">
+      <button class="switch" data-system="engine" type="button" aria-pressed="false">
+        <span class="switch-led"></span>
+        <span class="switch-rocker"><i></i></span>
+        <span class="switch-label">ENGINE</span>
+      </button>
+      <button class="switch" data-system="shields" type="button" aria-pressed="false">
+        <span class="switch-led"></span>
+        <span class="switch-rocker"><i></i></span>
+        <span class="switch-label">SHIELDS</span>
+      </button>
+      <button class="switch" data-system="scanner" type="button" aria-pressed="false">
+        <span class="switch-led"></span>
+        <span class="switch-rocker"><i></i></span>
+        <span class="switch-label">SCANNER</span>
+      </button>
+    </div>
+    <div class="triggers" role="group" aria-label="Manual controls">
+      <button class="trigger" data-shot="thruster" type="button"><span class="trig-face"><span class="trig-glyph thruster"></span></span><span class="trig-label">THRUST</span></button>
+      <button class="trigger" data-shot="pulse" type="button"><span class="trig-face"><span class="trig-glyph pulse"></span></span><span class="trig-label">PULSE</span></button>
+      <button class="trigger" data-shot="dock" type="button"><span class="trig-face"><span class="trig-glyph dock"></span></span><span class="trig-label">DOCK</span></button>
+    </div>
+  </section>
+
+  <!-- ---- SIGNAL TRIANGULATION ARRAY (hero) ---- -->
+  <section id="signal">
+    <div class="signal-head">
+      <span class="signal-title">SIGNAL ARRAY</span>
+      <div class="fx-readout" aria-hidden="true">
+        <span class="fx-chip" data-fx="filter">FILTER<i id="fx-filter">—</i></span>
+        <span class="fx-chip" data-fx="delay">DELAY<i id="fx-delay">—</i></span>
+        <span class="fx-chip" data-fx="crush">CRUSH<i id="fx-crush">—</i></span>
+        <span class="fx-chip" data-fx="space">SPACE<i id="fx-space">—</i></span>
+      </div>
+    </div>
+    <div id="pad" aria-label="Signal triangulation pad. Drag to tune the signal.">
+      <canvas id="pad-canvas"></canvas>
+      <span class="node" data-node="delta" style="--nx:50%;--ny:14%"><i></i><b>DELTA</b></span>
+      <span class="node" data-node="sigma" style="--nx:15%;--ny:84%"><i></i><b>SIGMA</b></span>
+      <span class="node" data-node="omega" style="--nx:85%;--ny:84%"><i></i><b>OMEGA</b></span>
+      <div id="puck"><span class="puck-core"></span><span class="puck-ping"></span></div>
+      <span id="pad-hint">drag to triangulate</span>
+    </div>
+  </section>
+</main>
+
+<!-- ============ CREDITS ============ -->
+<aside id="credits" data-show="false" aria-hidden="true">
+  <div class="credits-card">
+    <button class="credits-close" id="credits-close" type="button" aria-label="Close">close</button>
+    <h2>STARHOPPER</h2>
+    <p class="credits-lead">A family flight deck for the road. Built to be played, not watched.</p>
+    <h3>Music &amp; sound</h3>
+    <p>Music beds and sound effects from <a href="https://mixkit.co" target="_blank" rel="noopener">Mixkit</a>, used under the Mixkit Free License (free for personal &amp; commercial use, no attribution required). Robot voice synthesized locally with the macOS speech engine.</p>
+    <h3>Built with</h3>
+    <p><a href="https://tonejs.github.io" target="_blank" rel="noopener">Tone.js</a> for the audio engine and live effects, <a href="https://gsap.com" target="_blank" rel="noopener">GSAP</a> for motion, HTML canvas for the scope. No frameworks.</p>
+    <p class="credits-foot">Fly safe. Look after your crew.</p>
+  </div>
+</aside>
+
+<!-- libraries (vendored: works offline in the car) -->
+<script src="js/vendor/gsap.min.js"></script>
+<script src="js/vendor/Tone.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
