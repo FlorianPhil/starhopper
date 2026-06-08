@@ -1,23 +1,15 @@
 // STARHOPPER — audio engine (Tone.js).
-// Real recorded files only. The triangulation pad processes a real scanner
-// loop through a true DSP chain (filter / distortion / bitcrush / feedback
-// delay / spatial pan). No synthesized "fake SFX".
+// Real recorded files only. The triangulation pad processes a real RADIO-static
+// source through a true DSP chain (filter / distortion / bitcrush / feedback
+// delay / spatial pan) so moving the puck sounds like tuning a signal.
 import { AUDIO, MODES } from "./config.js";
 
-let beds, loops, shots, voices, scanner;
+let beds, loops, shots, voices, signalSrc;
 let master, limiter, musicBus, sfxBus, voiceBus, signalGain;
 let filter, dist, crusher, delay, panner, sigWave, meter;
-let ready = false;
+let ready = false, activeBed = "cruise";
 
-const state = {
-  mode: "cruise",
-  muted: false,
-  throttle: 0.55,
-  padLive: false,
-  engineOn: false,
-  musicOnly: false,
-  voiceUntil: 0
-};
+const state = { mode: "cruise", muted: false, throttle: 0.55, engineOn: false, musicOnly: false, voiceUntil: 0 };
 
 export function audioReady() { return ready; }
 export function getState() { return state; }
@@ -26,80 +18,71 @@ export function getState() { return state; }
 export async function initAudio() {
   master = new Tone.Volume(0);
   limiter = new Tone.Limiter(-1);
-  master.connect(limiter);
-  limiter.toDestination();
-
-  meter = new Tone.Meter({ smoothing: 0.82 });
-  master.connect(meter);
+  master.connect(limiter); limiter.toDestination();
+  meter = new Tone.Meter({ smoothing: 0.82 }); master.connect(meter);
 
   musicBus = new Tone.Volume(0).connect(master);
   sfxBus   = new Tone.Volume(-1).connect(master);
   voiceBus = new Tone.Volume(3).connect(master);
 
-  // --- signal FX chain (tuned live by the triangulation pad) ---
-  filter  = new Tone.Filter({ type: "lowpass", frequency: 1400, Q: 1.4, rolloff: -24 });
-  dist    = new Tone.Distortion({ distortion: 0.45, wet: 0 });
+  // --- signal FX chain: tunes a radio-static source, live, from the pad ---
+  filter  = new Tone.Filter({ type: "lowpass", frequency: 1200, Q: 2.2, rolloff: -24 });
+  dist    = new Tone.Distortion({ distortion: 0.6, wet: 0 });
   crusher = new Tone.BitCrusher({ bits: 8 });
-  delay   = new Tone.FeedbackDelay({ delayTime: 0.24, feedback: 0.18, wet: 0 });
+  delay   = new Tone.FeedbackDelay({ delayTime: 0.19, feedback: 0.2, wet: 0 });
   panner  = new Tone.Panner(0);
   signalGain = new Tone.Volume(-60).connect(master);
   setBits(8); setWet(crusher, 0);
+  signalSrc = new Tone.Player({ url: AUDIO.base + AUDIO.signal, loop: true, fadeIn: 0.3, fadeOut: 0.4 });
+  signalSrc.chain(filter, dist, crusher, delay, panner, signalGain);
+  sigWave = new Tone.Waveform(256); panner.connect(sigWave);
 
-  scanner = new Tone.Player({ url: AUDIO.base + AUDIO.loops.scanner, loop: true, fadeIn: 0.2, fadeOut: 0.3 });
-  scanner.chain(filter, dist, crusher, delay, panner, signalGain);
-  sigWave = new Tone.Waveform(256);
-  panner.connect(sigWave);
-
-  beds = new Tone.Players({ urls: AUDIO.music, baseUrl: AUDIO.base, loop: true, fadeIn: 0.4, fadeOut: 0.6 }).connect(musicBus);
-  loops = new Tone.Players({ urls: { engine: AUDIO.loops.engine, shields: AUDIO.loops.shields }, baseUrl: AUDIO.base, loop: true, fadeIn: 0.25, fadeOut: 0.4 }).connect(sfxBus);
-  shots = new Tone.Players({ urls: AUDIO.shots, baseUrl: AUDIO.base }).connect(sfxBus);
+  beds   = new Tone.Players({ urls: AUDIO.music, baseUrl: AUDIO.base, fadeIn: 0.4, fadeOut: 0.6 }).connect(musicBus);
+  loops  = new Tone.Players({ urls: AUDIO.loops, baseUrl: AUDIO.base, fadeIn: 0.25, fadeOut: 0.4 }).connect(sfxBus);
+  shots  = new Tone.Players({ urls: AUDIO.shots, baseUrl: AUDIO.base }).connect(sfxBus);
   voices = new Tone.Players({ urls: AUDIO.voice, baseUrl: AUDIO.base }).connect(voiceBus);
 
   await Tone.loaded();
+  // Tone.Players does NOT propagate a `loop` option to its players, so set it here:
+  for (const k of Object.keys(AUDIO.music)) beds.player(k).loop = true;
+  for (const k of Object.keys(AUDIO.loops)) loops.player(k).loop = true;
+  try { shots.player("sonar").volume.value = -13; } catch (e) {}
   ready = true;
+  if (typeof window !== "undefined") window.__SHa = { beds, loops, signalSrc, state };
 }
 
-export async function unlock() {
-  await Tone.start();
-  Tone.getContext().lookAhead = 0.02; // snappier triggers for a touch UI
-}
+export async function unlock() { await Tone.start(); Tone.getContext().lookAhead = 0.02; }
 
 // ---- boot: spin up the ship ----
 export function bootAudio() {
   const m = MODES[state.mode];
-  // start every bed looping, only the active one audible -> instant crossfades
-  for (const key of Object.keys(AUDIO.music)) {
-    const p = beds.player(key);
-    p.volume.value = -60;
-    if (p.state !== "started") p.start();
-  }
+  for (const key of Object.keys(AUDIO.music)) { const p = beds.player(key); p.volume.value = -60; if (p.state !== "started") p.start(); }
+  activeBed = m.bed;
   beds.player(m.bed).volume.rampTo(m.bedDb, 0.8);
+  // signal array is always live once booted (the pad always tunes it)
+  if (signalSrc.state !== "started") signalSrc.start();
+  signalGain.volume.rampTo(-12, 0.8);
   setLoop("engine", true, 0.9);
-  setLoop("scanner", true, 0.6);
+  setLoop("scanner", true, 0.9);   // computer / calculating ambience
   applyThrottle(state.throttle);
 }
 
-// ---- mode change: crossfade bed + retune engine ----
+// ---- mode change: crossfade bed + retune engine/music ----
 export function setModeAudio(mode, prev) {
   state.mode = mode;
   const from = MODES[prev], to = MODES[mode];
   if (from.bed !== to.bed) {
     beds.player(from.bed).volume.rampTo(-60, 1.1);
     beds.player(to.bed).volume.rampTo(to.bedDb, 1.1);
+    activeBed = to.bed;
   } else {
     beds.player(to.bed).volume.rampTo(to.bedDb, 0.6);
   }
   applyThrottle(state.throttle);
 }
 
-// ---- system loops (engine / shields / scanner-signal) ----
+// ---- system loops (engine / shields / scanner-computer) — all distinct sounds ----
 export function setLoop(name, on, fade = 0.4) {
-  if (name === "scanner") {
-    state.padLive = on;
-    if (on && scanner.state !== "started") scanner.start();
-    signalGain.volume.rampTo((on && !state.musicOnly) ? -7 : -60, fade);
-    return;
-  }
   if (name === "engine") {
     state.engineOn = on;
     if (on) { if (loops.player("engine").state !== "started") loops.player("engine").start(); applyThrottle(state.throttle); }
@@ -107,66 +90,61 @@ export function setLoop(name, on, fade = 0.4) {
     return;
   }
   const p = loops.player(name);
-  if (on) { if (p.state !== "started") p.start(); p.volume.rampTo(-12, fade); }
+  if (on) { if (p.state !== "started") p.start(); p.volume.rampTo(name === "shields" ? -13 : -15, fade); }
   else p.volume.rampTo(-60, fade);
 }
 
-// ---- throttle (velocity) drives engine PITCH + LOUDNESS + intensity ----
+// ---- throttle (velocity): engine intensity + faster/louder music ----
 export function applyThrottle(v) {
   state.throttle = v;
   const m = MODES[state.mode];
   try {
     const eng = loops.player("engine");
-    eng.playbackRate = m.engineRate * (0.58 + v * 1.04);          // wider sweep = more intense
-    if (state.engineOn) eng.volume.rampTo(-15 + v * 12.5, 0.12);  // louder the faster you go
+    eng.playbackRate = m.engineRate * (0.55 + v * 1.15);
+    if (state.engineOn) eng.volume.rampTo(-16 + v * 14, 0.12);
+    beds.player(activeBed).playbackRate = 0.9 + v * 0.3;     // music speeds up
+    musicBus.volume.rampTo(-3.5 + v * 4, 0.2);               // and lifts
   } catch (e) {}
 }
 
-// ---- music-only: silence sfx / signal / voice, keep the cinematic bed ----
-export function setMusicOnly(on) {
-  state.musicOnly = on;
-  const t = 0.3;
-  sfxBus.volume.rampTo(on ? -60 : -1, t);
-  voiceBus.volume.rampTo(on ? -60 : 3, t);
-  signalGain.volume.rampTo(on ? -60 : (state.padLive ? -7 : -60), t);
-}
-
 // ---- one-shots ----
-export function triggerShot(name) {
-  try { shots.player(name).start(); } catch (e) {}
-}
+export function triggerShot(name) { try { shots.player(name).start(); } catch (e) {} }
 
-// ---- voice (ducks the music bed while speaking) ----
+// ---- voice (ducks the music bed) ----
 export function playVoice(key, duck = true) {
   const p = voices.player(key);
   if (!p) return 0;
   const dur = (p.buffer && p.buffer.duration) || 1.4;
   try { p.start(); } catch (e) { return 0; }
   if (duck) {
-    musicBus.volume.cancelScheduledValues?.(Tone.now());
-    musicBus.volume.rampTo(-9, 0.18);
-    musicBus.volume.rampTo(0, 0.7, Tone.now() + dur + 0.15);
+    musicBus.volume.rampTo(-12, 0.18);
+    musicBus.volume.rampTo(-3.5 + state.throttle * 4, 0.7, Tone.now() + dur + 0.15);
     state.voiceUntil = performance.now() + dur * 1000;
   }
   return dur;
 }
 
 // ---- triangulation FX (called every pad frame) ----
-// p = { filterFreq, delayFb, delayWet, crushAmt, distWet, pan }
 export function setSignalFx(p) {
   if (!ready) return;
-  filter.frequency.rampTo(p.filterFreq, 0.05);
+  filter.frequency.rampTo(p.filterFreq, 0.04);
   delay.feedback.rampTo(p.delayFb, 0.08);
   delay.wet.rampTo(p.delayWet, 0.08);
   setBits(p.bits);
   setWet(crusher, p.crushWet);
   dist.wet.rampTo(p.distWet, 0.08);
   panner.pan.rampTo(p.pan, 0.12);
+  if (signalGain && !state.musicOnly) signalGain.volume.rampTo(-12 + (p.active || 0) * 6, 0.15);
 }
 
-export function setMuted(m) {
-  state.muted = m;
-  master.mute = m;
+export function setMuted(m) { state.muted = m; master.mute = m; }
+
+export function setMusicOnly(on) {
+  state.musicOnly = on;
+  const t = 0.3;
+  sfxBus.volume.rampTo(on ? -60 : -1, t);
+  voiceBus.volume.rampTo(on ? -60 : 3, t);
+  signalGain.volume.rampTo(on ? -60 : -12, t);
 }
 
 export function getSignalWaveform() { return sigWave ? sigWave.getValue() : null; }

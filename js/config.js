@@ -46,8 +46,9 @@ export const MODES = {
 export const AUDIO = {
   base: "audio/",
   music: { cruise: "music/cruise.mp3", combat: "music/combat.mp3", stealth: "music/stealth.mp3", warp: "music/warp.mp3" },
-  loops: { engine: "sfx/engine_loop.mp3", shields: "sfx/shield_loop.mp3", scanner: "sfx/scanner_loop.mp3" },
-  shots: { thruster: "sfx/thruster.mp3", pulse: "sfx/pulse.mp3", missile: "sfx/missile.mp3", dock: "sfx/dock.mp3", impact: "sfx/impact.mp3" },
+  loops: { engine: "sfx/engine_loop.mp3", shields: "sfx/shield_loop.mp3", scanner: "sfx/computer_loop.mp3" },
+  signal: "sfx/radio_loop.mp3",
+  shots: { thruster: "sfx/thruster.mp3", pulse: "sfx/pulse.mp3", missile: "sfx/missile.mp3", dock: "sfx/dock.mp3", impact: "sfx/impact.mp3", sonar: "sfx/sonar_ping.mp3" },
   voice: {
     boot: "voice/v_boot.mp3",
     mode_cruise: "voice/v_mode_cruise.mp3", mode_combat: "voice/v_mode_combat.mp3",

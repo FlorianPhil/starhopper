@@ -112,7 +112,6 @@ function toggleSystem(name, force) {
   sys[name] = force !== undefined ? force : !sys[name];
   reflectSwitch(name);
   A.setLoop(name, sys[name]);
-  if (name === "scanner") V.setPadLive(sys[name]);
   A.triggerShot("dock");
 }
 function reflectSwitch(name) {
@@ -181,11 +180,12 @@ function wirePad() {
       w[i] = 1 / (dx * dx + dy * dy + 0.012); sum += w[i];
     }
     for (let i = 0; i < 3; i++) w[i] /= sum;
-    const filterFreq = 260 * Math.pow(34, clamp(0.1 + w[2] * 0.98, 0, 1));   // omega opens it
-    const delayWet = w[0] * 0.74, delayFb = 0.12 + w[0] * 0.62;             // delta = space
-    const bits = 8 - w[1] * 5, crushWet = clamp(w[1] * 1.05, 0, 1), distWet = w[1] * 0.5; // sigma = crush
-    const pan = clamp((nx - 0.5) * 1.7, -1, 1);
-    A.setSignalFx({ filterFreq, delayFb, delayWet, bits, crushWet, distWet, pan });
+    const active = Math.max(w[0], w[1], w[2]);
+    const filterFreq = 180 * Math.pow(70, clamp(0.06 + w[2] * 1.0, 0, 1));   // omega = bright/clear signal
+    const delayWet = w[0] * 0.85, delayFb = 0.1 + w[0] * 0.62;               // delta = echo / space
+    const bits = 8 - w[1] * 6, crushWet = clamp(w[1] * 1.1, 0, 1), distWet = w[1] * 0.7; // sigma = static / crush
+    const pan = clamp((nx - 0.5) * 1.8, -1, 1);
+    A.setSignalFx({ filterFreq, delayFb, delayWet, bits, crushWet, distWet, pan, active });
     readout(filterFreq, delayFb, crushWet, pan);
     for (let i = 0; i < 3; i++) {
       const node = document.querySelector(`.node[data-node="${NODES[i].id}"]`);
@@ -209,7 +209,6 @@ function wirePad() {
     e.preventDefault();
     pad.setPointerCapture?.(e.pointerId);
     pad.classList.add("touched", "grabbing");
-    if (!sys.scanner) toggleSystem("scanner", true);
     dragging = true; gliding = false;
     const p = ptr(e); nx = p.x; ny = p.y; lastX = nx; lastY = ny; vx = vy = 0;
     setPuckEl(); compute(); tick();

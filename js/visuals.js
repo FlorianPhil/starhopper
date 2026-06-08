@@ -3,12 +3,13 @@
 // horizon glow). Pad = triangulation lines + a live oscilloscope of the REAL
 // processed signal. No orbiting circles, no pulsing-ring motif.
 import { MODES, NODES } from "./config.js";
-import { getSignalWaveform, getLevel, getState } from "./audio.js";
+import { getLevel, getState, triggerShot } from "./audio.js";
 
 let scope, sctx, pad, pctx;
 let SW = 0, SH = 0, PW = 0, PH = 0, DPR = 1;
 let stars = [], contacts = [], flashes = [], projectiles = [];
 let padTrail = [];
+let sonarA = 0, blips = [];
 let puck = { x: 0.5, y: 0.54 }, weights = [0, 0, 0], padLive = false, drive = 0.55;
 let running = false, t = 0, lastSpawn = 0, last = 0;
 
@@ -243,55 +244,59 @@ function drawProjectiles(cx, cy, dt) {
   projectiles = projectiles.filter(m => !m.dead);
 }
 
-// ---------------- pad ----------------
+// ---------------- pad: sonar scope + triangulation overlay ----------------
 function renderPad(dt) {
   pctx.clearRect(0, 0, PW, PH);
-  // dot-matrix grid
-  pctx.fillStyle = rgba(cur.col, 0.10);
-  const step = 22;
-  for (let x = step / 2; x < PW; x += step) for (let y = step / 2; y < PH; y += step) {
-    pctx.beginPath(); pctx.arc(x, y, 0.8, 0, 6.283); pctx.fill();
+  const cx = PW / 2, cy = PH / 2, R = Math.min(PW, PH) * 0.5;
+
+  // scope grid: range rings + quadrant cross
+  pctx.strokeStyle = rgba(cur.col, 0.09); pctx.lineWidth = 1;
+  for (let r = R / 3; r <= R + 1; r += R / 3) { pctx.beginPath(); pctx.arc(cx, cy, r, 0, 6.283); pctx.stroke(); }
+  pctx.beginPath(); pctx.moveTo(cx - R, cy); pctx.lineTo(cx + R, cy); pctx.moveTo(cx, cy - R); pctx.lineTo(cx, cy + R); pctx.stroke();
+  pctx.fillStyle = rgba(cur.col, 0.06);
+  for (let x = 13; x < PW; x += 26) for (let y = 13; y < PH; y += 26) { pctx.beginPath(); pctx.arc(x, y, 0.8, 0, 6.283); pctx.fill(); }
+
+  // rotating sonar sweep + contact blips
+  if (padLive) {
+    sonarA += 0.022 * dt; if (sonarA > 6.283) sonarA -= 6.283;
+    for (let k = 0; k < 16; k++) {
+      const ang = sonarA - k * 0.045;
+      pctx.strokeStyle = rgba(cur.col, (1 - k / 16) * 0.13); pctx.lineWidth = 1.6;
+      pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(cx + Math.cos(ang) * R, cy + Math.sin(ang) * R); pctx.stroke();
+    }
+    pctx.strokeStyle = rgba(cur.ink, 0.42); pctx.lineWidth = 1.6;
+    pctx.beginPath(); pctx.moveTo(cx, cy); pctx.lineTo(cx + Math.cos(sonarA) * R, cy + Math.sin(sonarA) * R); pctx.stroke();
+
+    if (blips.length < 4 && Math.random() < 0.006 * dt) blips.push({ ang: Math.random() * 6.283, rad: (0.22 + Math.random() * 0.72) * R, lit: 0, pinged: false, life: 1 });
+    for (const b of blips) {
+      b.life -= 0.0016 * dt; if (b.life <= 0) { b.dead = true; continue; }
+      const d = ((sonarA - b.ang) % 6.283 + 6.283) % 6.283;
+      if (d < 0.13) { b.lit = 1; if (!b.pinged) { b.pinged = true; triggerShot("sonar"); } }
+      else b.lit *= Math.pow(0.94, dt);
+      const a = Math.min(b.lit, b.life * 2);
+      const bx = cx + Math.cos(b.ang) * b.rad, by = cy + Math.sin(b.ang) * b.rad;
+      if (a > 0.3) { pctx.fillStyle = rgba(cur.col, (a - 0.3) * 0.4); pctx.beginPath(); pctx.arc(bx, by, 8, 0, 6.283); pctx.fill(); }
+      pctx.fillStyle = rgba(cur.ink, a); pctx.beginPath(); pctx.arc(bx, by, 2.4 + a * 1.8, 0, 6.283); pctx.fill();
+    }
+    blips = blips.filter(b => !b.dead);
   }
-  // array triangle (faint geometry)
+
+  // triangulation overlay (the tuning array)
   const np = NODES.map(n => ({ x: n.x * PW, y: n.y * PH }));
-  pctx.strokeStyle = rgba(cur.col, 0.14); pctx.lineWidth = 1;
+  pctx.strokeStyle = rgba(cur.col, 0.12); pctx.lineWidth = 1;
   pctx.beginPath(); pctx.moveTo(np[0].x, np[0].y); pctx.lineTo(np[1].x, np[1].y); pctx.lineTo(np[2].x, np[2].y); pctx.closePath(); pctx.stroke();
 
   const px = puck.x * PW, py = puck.y * PH;
-
-  // puck trail
-  for (let i = 0; i < padTrail.length; i++) {
-    const p = padTrail[i]; p.a *= 0.9;
-    pctx.fillStyle = rgba(cur.col, p.a * 0.3);
-    pctx.beginPath(); pctx.arc(p.x * PW, p.y * PH, 2 + i * 0.2, 0, 6.283); pctx.fill();
-  }
+  for (let i = 0; i < padTrail.length; i++) { const p = padTrail[i]; p.a *= 0.9; pctx.fillStyle = rgba(cur.col, p.a * 0.3); pctx.beginPath(); pctx.arc(p.x * PW, p.y * PH, 2 + i * 0.2, 0, 6.283); pctx.fill(); }
   padTrail = padTrail.filter(p => p.a > 0.05);
 
-  // triangulation lines (weight = brightness/width)
   if (padLive) {
     for (let i = 0; i < 3; i++) {
       const w = weights[i];
-      pctx.strokeStyle = rgba(cur.col, 0.12 + w * 0.55);
-      pctx.lineWidth = 0.6 + w * 2.4;
+      pctx.strokeStyle = rgba(cur.col, 0.14 + w * 0.55); pctx.lineWidth = 0.6 + w * 2.6;
       pctx.beginPath(); pctx.moveTo(np[i].x, np[i].y); pctx.lineTo(px, py); pctx.stroke();
       if (w > 0.5) { pctx.fillStyle = rgba(cur.col, (w - 0.5) * 0.5); pctx.beginPath(); pctx.arc(np[i].x, np[i].y, 8 + w * 6, 0, 6.283); pctx.fill(); }
     }
-  }
-
-  // live oscilloscope of the real processed signal
-  const wave = getSignalWaveform();
-  if (wave && padLive) {
-    pctx.strokeStyle = rgba(cur.ink, 0.5); pctx.lineWidth = 1.4; pctx.beginPath();
-    const mid = PH * 0.5, amp = PH * 0.28;
-    for (let i = 0; i < wave.length; i++) {
-      const x = (i / (wave.length - 1)) * PW;
-      const y = mid + wave[i] * amp;
-      i ? pctx.lineTo(x, y) : pctx.moveTo(x, y);
-    }
-    pctx.stroke();
-  } else {
-    pctx.strokeStyle = rgba(cur.col, 0.18); pctx.lineWidth = 1;
-    pctx.beginPath(); pctx.moveTo(0, PH * 0.5); pctx.lineTo(PW, PH * 0.5); pctx.stroke();
   }
 }
 

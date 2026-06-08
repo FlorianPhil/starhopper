@@ -4,7 +4,7 @@ import { EVENTS, EVENT_MIN_MS, EVENT_MAX_MS } from "./config.js";
 import * as A from "./audio.js";
 import * as V from "./visuals.js";
 
-let timer = 0, alTimer = 0, lastId = "", started = false, enabled = true;
+let timer = 0, alTimer = 0, lastId = "", started = false, enabled = false;
 const $ = (s) => document.querySelector(s);
 
 export function startEvents() {
