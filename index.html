@@ -59,9 +59,9 @@
     <div class="sys-tele">
       <div class="meter" data-m="pwr"><span class="meter-cap">PWR</span><span class="meter-bar"><i></i></span></div>
       <div class="meter" data-m="hull"><span class="meter-cap">HULL</span><span class="meter-bar"><i></i></span></div>
-      <div class="meter" data-m="vel"><span class="meter-cap">VEL</span><span class="meter-bar"><i></i></span></div>
     </div>
     <div class="sys-actions">
+      <button id="btn-settings" class="ic-btn" type="button" aria-label="Settings"><span class="ic ic-gear"></span></button>
       <button id="btn-mute" class="ic-btn" type="button" aria-label="Mute audio" aria-pressed="false"><span class="ic ic-sound"></span></button>
       <button id="btn-credits" class="ic-btn" type="button" aria-label="Credits"><span class="ic ic-info">i</span></button>
     </div>
@@ -121,6 +121,7 @@
     <div class="triggers" role="group" aria-label="Manual controls">
       <button class="trigger" data-shot="thruster" type="button"><span class="trig-face"><span class="trig-glyph thruster"></span></span><span class="trig-label">THRUST</span></button>
       <button class="trigger" data-shot="pulse" type="button"><span class="trig-face"><span class="trig-glyph pulse"></span></span><span class="trig-label">PULSE</span></button>
+      <button class="trigger" data-shot="missile" type="button"><span class="trig-face"><span class="trig-glyph missile"></span></span><span class="trig-label">MISSILE</span></button>
       <button class="trigger" data-shot="dock" type="button"><span class="trig-face"><span class="trig-glyph dock"></span></span><span class="trig-label">DOCK</span></button>
     </div>
   </section>
@@ -158,6 +159,25 @@
     <h3>Built with</h3>
     <p><a href="https://tonejs.github.io" target="_blank" rel="noopener">Tone.js</a> for the audio engine and live effects, <a href="https://gsap.com" target="_blank" rel="noopener">GSAP</a> for motion, HTML canvas for the scope. No frameworks.</p>
     <p class="credits-foot">Fly safe. Look after your crew.</p>
+  </div>
+</aside>
+
+<!-- ============ SETTINGS ============ -->
+<aside id="settings" data-show="false" aria-hidden="true">
+  <div class="settings-card">
+    <button class="credits-close" id="settings-close" type="button" aria-label="Close">close</button>
+    <h2 class="settings-h">DECK SETTINGS</h2>
+    <button class="set-switch" id="sw-events" type="button" aria-pressed="true">
+      <span class="switch-led"></span>
+      <span class="set-switch-label">Random events <em>mission hails &amp; voice</em></span>
+      <span class="switch-rocker"><i></i></span>
+    </button>
+    <button class="set-switch" id="sw-music" type="button" aria-pressed="false">
+      <span class="switch-led"></span>
+      <span class="set-switch-label">Music only <em>mute instruments &amp; voice</em></span>
+      <span class="switch-rocker"><i></i></span>
+    </button>
+    <p class="set-note">Music Only keeps the cinematic soundtrack and silences the engine, effects, and announcements.</p>
   </div>
 </aside>
 

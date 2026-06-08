@@ -4,7 +4,7 @@
 import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js";
 import * as A from "./audio.js";
 import * as V from "./visuals.js";
-import { startEvents } from "./events.js";
+import { startEvents, setEventsEnabled } from "./events.js";
 
 let mode = "cruise";
 let booted = false;
@@ -132,6 +132,7 @@ function wireTriggers() {
       setTimeout(() => tg.classList.remove("fire"), 240);
       if (shot === "thruster") V.spawnScopeEvent("surge");
       if (shot === "pulse") V.spawnScopeEvent("streak");
+      if (shot === "missile") V.spawnScopeEvent("missile");
       if (shot === "dock") V.spawnScopeEvent("contact");
     });
   });
@@ -170,7 +171,6 @@ function wirePad() {
   const pad = $("#pad"), puckEl = $("#puck");
   let nx = 0.5, ny = 0.54, vx = 0, vy = 0;
   let lastX = nx, lastY = ny, dragging = false, gliding = false, raf = 0;
-  const locked = [false, false, false];
 
   const setPuckEl = () => { puckEl.style.left = (nx * 100) + "%"; puckEl.style.top = (ny * 100) + "%"; };
 
@@ -262,6 +262,25 @@ function wireChrome() {
   $("#btn-credits").addEventListener("click", () => credits.dataset.show = "true");
   $("#credits-close").addEventListener("click", () => credits.dataset.show = "false");
   credits.addEventListener("click", (e) => { if (e.target === credits) credits.dataset.show = "false"; });
+
+  const settings = $("#settings");
+  $("#btn-settings").addEventListener("click", () => settings.dataset.show = "true");
+  $("#settings-close").addEventListener("click", () => settings.dataset.show = "false");
+  settings.addEventListener("click", (e) => { if (e.target === settings) settings.dataset.show = "false"; });
+
+  const swEvents = $("#sw-events");
+  swEvents.addEventListener("click", () => {
+    const on = swEvents.getAttribute("aria-pressed") !== "true";
+    swEvents.setAttribute("aria-pressed", String(on));
+    setEventsEnabled(on);
+    A.triggerShot("dock");
+  });
+  const swMusic = $("#sw-music");
+  swMusic.addEventListener("click", () => {
+    const on = swMusic.getAttribute("aria-pressed") !== "true";
+    swMusic.setAttribute("aria-pressed", String(on));
+    A.setMusicOnly(on);
+  });
 }
 
 /* ----------------------------- METERS ----------------------------- */

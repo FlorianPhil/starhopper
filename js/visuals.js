@@ -7,7 +7,7 @@ import { getSignalWaveform, getLevel, getState } from "./audio.js";
 
 let scope, sctx, pad, pctx;
 let SW = 0, SH = 0, PW = 0, PH = 0, DPR = 1;
-let stars = [], contacts = [], flashes = [];
+let stars = [], contacts = [], flashes = [], projectiles = [];
 let padTrail = [];
 let puck = { x: 0.5, y: 0.54 }, weights = [0, 0, 0], padLive = false, drive = 0.55;
 let running = false, t = 0, lastSpawn = 0, last = 0;
@@ -73,6 +73,7 @@ export function spawnScopeEvent(type) {
   else if (type === "flash") flashes.push({ k: "flash", life: 1 });
   else if (type === "surge") flashes.push({ k: "surge", life: 1 });
   else if (type === "nebula") flashes.push({ k: "nebula", life: 1 });
+  else if (type === "missile") projectiles.push({ p: 0, x: (Math.random() - 0.5) * 0.12 });
 }
 
 // ---------------- main loop ----------------
@@ -138,6 +139,7 @@ function renderScope(dt, now) {
   }
 
   drawContacts(cx, cy, dt);
+  drawProjectiles(cx, cy, dt);
   drawReticle(cx, cy, now);
   drawFlashes(dt);
 
@@ -225,6 +227,20 @@ function drawFlashes(dt) {
     else if (f.k === "nebula") { const g = sctx.createLinearGradient(0, 0, SW, SH); g.addColorStop(0, rgba(cur.col, a * 0.18)); g.addColorStop(1, rgba(cur.deep, a * 0.22)); sctx.fillStyle = g; sctx.fillRect(0, 0, SW, SH); }
   }
   flashes = flashes.filter(f => !f.dead);
+}
+
+function drawProjectiles(cx, cy, dt) {
+  for (const m of projectiles) {
+    m.p += 0.03 * dt; if (m.p >= 1) { m.dead = true; continue; }
+    const y = cy - m.p * (cy + 30);
+    const x = cx + m.x * SW * (0.3 + m.p);
+    const a = 1 - m.p;
+    sctx.strokeStyle = rgba(cur.ink, a * 0.85); sctx.lineWidth = 2.2; sctx.lineCap = "round";
+    sctx.beginPath(); sctx.moveTo(x - m.x * 44, y + 28); sctx.lineTo(x, y); sctx.stroke();
+    sctx.fillStyle = rgba(cur.col, a * 0.4); sctx.beginPath(); sctx.arc(x, y, 7, 0, 6.283); sctx.fill();
+    sctx.fillStyle = rgba(cur.ink, a); sctx.beginPath(); sctx.arc(x, y, 3.2, 0, 6.283); sctx.fill();
+  }
+  projectiles = projectiles.filter(m => !m.dead);
 }
 
 // ---------------- pad ----------------

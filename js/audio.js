@@ -14,6 +14,8 @@ const state = {
   muted: false,
   throttle: 0.55,
   padLive: false,
+  engineOn: false,
+  musicOnly: false,
   voiceUntil: 0
 };
 
@@ -94,29 +96,39 @@ export function setModeAudio(mode, prev) {
 export function setLoop(name, on, fade = 0.4) {
   if (name === "scanner") {
     state.padLive = on;
-    if (on) {
-      if (scanner.state !== "started") scanner.start();
-      signalGain.volume.rampTo(-7, fade);
-    } else {
-      signalGain.volume.rampTo(-60, fade);
-    }
+    if (on && scanner.state !== "started") scanner.start();
+    signalGain.volume.rampTo((on && !state.musicOnly) ? -7 : -60, fade);
+    return;
+  }
+  if (name === "engine") {
+    state.engineOn = on;
+    if (on) { if (loops.player("engine").state !== "started") loops.player("engine").start(); applyThrottle(state.throttle); }
+    else loops.player("engine").volume.rampTo(-60, fade);
     return;
   }
   const p = loops.player(name);
-  if (on) {
-    if (p.state !== "started") p.start();
-    p.volume.rampTo(name === "engine" ? -8 : -12, fade);
-    if (name === "engine") applyThrottle(state.throttle);
-  } else {
-    p.volume.rampTo(-60, fade);
-  }
+  if (on) { if (p.state !== "started") p.start(); p.volume.rampTo(-12, fade); }
+  else p.volume.rampTo(-60, fade);
 }
 
-// ---- throttle drives engine pitch + a touch of bed energy ----
+// ---- throttle (velocity) drives engine PITCH + LOUDNESS + intensity ----
 export function applyThrottle(v) {
   state.throttle = v;
   const m = MODES[state.mode];
-  try { loops.player("engine").playbackRate = m.engineRate * (0.66 + v * 0.72); } catch (e) {}
+  try {
+    const eng = loops.player("engine");
+    eng.playbackRate = m.engineRate * (0.58 + v * 1.04);          // wider sweep = more intense
+    if (state.engineOn) eng.volume.rampTo(-15 + v * 12.5, 0.12);  // louder the faster you go
+  } catch (e) {}
+}
+
+// ---- music-only: silence sfx / signal / voice, keep the cinematic bed ----
+export function setMusicOnly(on) {
+  state.musicOnly = on;
+  const t = 0.3;
+  sfxBus.volume.rampTo(on ? -60 : -1, t);
+  voiceBus.volume.rampTo(on ? -60 : 3, t);
+  signalGain.volume.rampTo(on ? -60 : (state.padLive ? -7 : -60), t);
 }
 
 // ---- one-shots ----

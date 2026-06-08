@@ -47,32 +47,35 @@ export const AUDIO = {
   base: "audio/",
   music: { cruise: "music/cruise.mp3", combat: "music/combat.mp3", stealth: "music/stealth.mp3", warp: "music/warp.mp3" },
   loops: { engine: "sfx/engine_loop.mp3", shields: "sfx/shield_loop.mp3", scanner: "sfx/scanner_loop.mp3" },
-  shots: { thruster: "sfx/thruster.mp3", pulse: "sfx/pulse.mp3", dock: "sfx/dock.mp3", impact: "sfx/impact.mp3" },
+  shots: { thruster: "sfx/thruster.mp3", pulse: "sfx/pulse.mp3", missile: "sfx/missile.mp3", dock: "sfx/dock.mp3", impact: "sfx/impact.mp3" },
   voice: {
     boot: "voice/v_boot.mp3",
     mode_cruise: "voice/v_mode_cruise.mp3", mode_combat: "voice/v_mode_combat.mp3",
     mode_stealth: "voice/v_mode_stealth.mp3", mode_warp: "voice/v_mode_warp.mp3",
-    evt_asteroid: "voice/v_evt_asteroid.mp3", evt_signal: "voice/v_evt_signal.mp3",
-    evt_friendly: "voice/v_evt_friendly.mp3", evt_wormhole: "voice/v_evt_wormhole.mp3",
-    evt_surge: "voice/v_evt_surge.mp3", evt_planet: "voice/v_evt_planet.mp3",
-    evt_meteor: "voice/v_evt_meteor.mp3", evt_comet: "voice/v_evt_comet.mp3",
-    evt_lifeform: "voice/v_evt_lifeform.mp3", evt_nebula: "voice/v_evt_nebula.mp3",
-    lock: "voice/v_lock.mp3"
+    evt_droidnap: "voice/v_evt_droidnap.mp3", evt_cookies: "voice/v_evt_cookies.mp3",
+    evt_whale: "voice/v_evt_whale.mp3", evt_cat: "voice/v_evt_cat.mp3",
+    evt_sock: "voice/v_evt_sock.mp3", evt_parking: "voice/v_evt_parking.mp3",
+    evt_signal: "voice/v_evt_signal.mp3", evt_comet: "voice/v_evt_comet.mp3",
+    evt_wormhole: "voice/v_evt_wormhole.mp3", evt_asteroid: "voice/v_evt_asteroid.mp3",
+    evt_nebula: "voice/v_evt_nebula.mp3", evt_boost: "voice/v_evt_boost.mp3"
   }
 };
 
 // Random mission events. text = on-screen banner; scope = canopy reaction.
+// Kept light and funny on purpose (family-friendly).
 export const EVENTS = [
-  { id: "asteroid", voice: "evt_asteroid", text: "ASTEROID FIELD AHEAD", sfx: "impact", scope: "debris" },
-  { id: "signal",   voice: "evt_signal",   text: "INCOMING SIGNAL — TRIANGULATE", sfx: "pulse", scope: "signal", hintPad: true },
-  { id: "friendly", voice: "evt_friendly", text: "FRIENDLY VESSEL APPROACHING", sfx: "dock", scope: "contact" },
-  { id: "wormhole", voice: "evt_wormhole", text: "WORMHOLE FORMING", sfx: "impact", scope: "flash" },
-  { id: "surge",    voice: "evt_surge",    text: "ENERGY SURGE — REROUTING", sfx: "thruster", scope: "surge" },
-  { id: "planet",   voice: "evt_planet",   text: "NEW PLANET ON SCANNERS", sfx: "dock", scope: "planet" },
-  { id: "meteor",   voice: "evt_meteor",   text: "METEOR SHOWER INCOMING", sfx: "impact", scope: "debris" },
-  { id: "comet",    voice: "evt_comet",    text: "COMET OFF THE PORT BOW", sfx: "pulse", scope: "streak" },
-  { id: "lifeform", voice: "evt_lifeform", text: "FRIENDLY LIFE-FORM DETECTED", sfx: "pulse", scope: "contact" },
-  { id: "nebula",   voice: "evt_nebula",   text: "ENTERING A NEBULA", sfx: "thruster", scope: "nebula" }
+  { id: "droidnap", voice: "evt_droidnap", text: "ASTRO-DROID NAPPING IN ENGINE ROOM", sfx: "dock", scope: "contact" },
+  { id: "cookies",  voice: "evt_cookies",  text: "THAT ASTEROID IS MADE OF COOKIES", sfx: "impact", scope: "debris" },
+  { id: "whale",    voice: "evt_whale",    text: "A SPACE WHALE JUST WAVED HELLO", sfx: "dock", scope: "contact" },
+  { id: "cat",      voice: "evt_cat",      text: "CAPTAIN'S CAT IS ON THE CONTROLS", sfx: "impact", scope: "surge" },
+  { id: "sock",     voice: "evt_sock",     text: "MISSING SOCK FOUND IN CARGO BAY", sfx: "dock", scope: "planet" },
+  { id: "parking",  voice: "evt_parking",  text: "FOUND THE LAST PARKING SPOT", sfx: "dock", scope: "planet" },
+  { id: "signal",   voice: "evt_signal",   text: "INCOMING SIGNAL — TUNE THE ARRAY", sfx: "pulse", scope: "signal", hintPad: true },
+  { id: "comet",    voice: "evt_comet",    text: "COMET OFF THE PORT BOW — SAY WOW", sfx: "pulse", scope: "streak" },
+  { id: "wormhole", voice: "evt_wormhole", text: "WORMHOLE FORMING — HOLD TIGHT", sfx: "impact", scope: "flash" },
+  { id: "asteroid", voice: "evt_asteroid", text: "ASTEROID FIELD — HOLD YOUR SNACKS", sfx: "impact", scope: "debris" },
+  { id: "nebula",   voice: "evt_nebula",   text: "FLYING THROUGH A GLOWING NEBULA", sfx: "thruster", scope: "nebula" },
+  { id: "boost",    voice: "evt_boost",    text: "TURBO BOOST FOUND — GO FAST?", sfx: "thruster", scope: "surge" }
 ];
 
 // Three triangulation nodes. Positions are fractions of the pad (match index.html).
@@ -83,5 +86,5 @@ export const NODES = [
   { id: "omega", x: 0.85, y: 0.84, fx: "filter" }  // lower-right — filter open / resonance
 ];
 
-export const EVENT_MIN_MS = 24000;   // soonest a random event can fire
-export const EVENT_MAX_MS = 52000;   // latest
+export const EVENT_MIN_MS = 22000;   // soonest a random event can fire
+export const EVENT_MAX_MS = 46000;   // latest

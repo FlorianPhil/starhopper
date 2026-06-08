@@ -24,14 +24,18 @@ python3 -m http.server 8810
   music bed.
 - **System switches** — Engine, Shields, Scanner: mechanical toggles driving real
   looping audio.
-- **Manual controls** — Thrust, Pulse, Dock one-shots with tactile feedback.
-- **Throttle** — a fluid fader that drives engine pitch and starfield speed.
+- **Manual controls** — Thrust, Pulse, Missile, Dock one-shots with tactile feedback.
+- **Throttle** — a fluid fader; the faster you go, the **louder and more intense** the
+  engine, plus a quicker starfield.
 - **Signal Triangulation Array** — the hero. Throw the puck between three antenna
   nodes; its position tunes a live DSP chain on a real scanner signal:
   filter / feedback-delay / distortion / bitcrush / stereo pan. It glides with
-  inertia and settles magnetically onto nodes.
-- **Mission events** — random hails ("Asteroid field ahead", "Wormhole forming")
-  with a consistent robot-voice announcer and matching sound + canopy reaction.
+  inertia and settles magnetically onto nodes. (Pure sound modifier, no chatter.)
+- **Mission events** — random, playful hails ("Our astro-droid is napping in the
+  engine room", "That asteroid is made of cookies") with a consistent robot-voice
+  announcer, matching sound, and a canopy reaction.
+- **Settings** (gear, top-right) — toggle **Random Events** on/off, and **Music Only**
+  (keep the cinematic soundtrack, mute engine / effects / announcements).
 
 ## Audio credits
 
