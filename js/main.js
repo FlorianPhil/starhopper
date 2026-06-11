@@ -1,6 +1,6 @@
 // STARHOPPER — entry point.
-import { initVisuals } from "./visuals.js";
-import { initUI } from "./ui.js";
+import { initVisuals } from "./visuals.js?v=4";
+import { initUI } from "./ui.js?v=4";
 
 function boot() {
   initVisuals();

@@ -2,7 +2,7 @@
 // Real recorded files only. The triangulation pad processes a real RADIO-static
 // source through a true DSP chain (filter / distortion / bitcrush / feedback
 // delay / spatial pan) so moving the puck sounds like tuning a signal.
-import { AUDIO, MODES } from "./config.js";
+import { AUDIO, MODES } from "./config.js?v=4";
 
 let beds, loops, shots, voices, signalSrc;
 let master, limiter, musicBus, sfxBus, voiceBus, signalGain;
@@ -33,7 +33,7 @@ export async function initAudio() {
   panner  = new Tone.Panner(0);
   signalGain = new Tone.Volume(-60).connect(master);
   setBits(8); setWet(crusher, 0);
-  signalSrc = new Tone.Player({ url: AUDIO.base + AUDIO.signal, loop: true, fadeIn: 0.3, fadeOut: 0.4 });
+  signalSrc = new Tone.Player({ url: AUDIO.base + AUDIO.signal, loop: true, loopStart: 1.0, loopEnd: 9.5, fadeIn: 0.3, fadeOut: 0.4 });
   signalSrc.chain(filter, dist, crusher, delay, panner, signalGain);
   sigWave = new Tone.Waveform(256); panner.connect(sigWave);
 
@@ -46,6 +46,15 @@ export async function initAudio() {
   // Tone.Players does NOT propagate a `loop` option to its players, so set it here:
   for (const k of Object.keys(AUDIO.music)) beds.player(k).loop = true;
   for (const k of Object.keys(AUDIO.loops)) loops.player(k).loop = true;
+  // Loop only each file's sustained region. The raw files carry silent tails and
+  // fade boundaries (computer_loop is 1.5s of sound in a 3.7s file), which loop
+  // as a rhythmic dropout. Regions picked from RMS envelopes, level-matched ends.
+  const LOOP_TRIM = {
+    loops: { engine: [1.0, 9.3], shields: [0.8, 4.6], scanner: [0.55, 1.9] },
+    music: { cruise: [0.1, 89.75], combat: [0.35, 89.75], stealth: [0.35, 89.75], warp: [0.35, 89.75] }
+  };
+  for (const [k, [s, e]] of Object.entries(LOOP_TRIM.loops)) { const p = loops.player(k); p.loopStart = s; p.loopEnd = e; }
+  for (const [k, [s, e]] of Object.entries(LOOP_TRIM.music)) { const p = beds.player(k); p.loopStart = s; p.loopEnd = e; }
   try { shots.player("sonar").volume.value = -13; } catch (e) {}
   ready = true;
 }
@@ -111,7 +120,8 @@ export function triggerShot(name) { try { shots.player(name).start(); } catch (e
 
 // ---- voice (ducks the music bed) ----
 export function playVoice(key, duck = true) {
-  const p = voices.player(key);
+  let p = null;
+  try { p = voices.player(key); } catch (e) {}   // Players.player() throws on unknown keys
   if (!p) return 0;
   const dur = (p.buffer && p.buffer.duration) || 1.4;
   try { p.start(); } catch (e) { return 0; }

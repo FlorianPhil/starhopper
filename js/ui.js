@@ -1,10 +1,10 @@
 // STARHOPPER — UI wiring + the two hero interactions:
 //   1) mode transition (the whole deck re-lights)
 //   2) signal triangulation pad (throwable puck, inertia, magnetic node-settle)
-import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js";
-import * as A from "./audio.js";
-import * as V from "./visuals.js";
-import { startEvents, setEventsEnabled } from "./events.js";
+import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js?v=4";
+import * as A from "./audio.js?v=4";
+import * as V from "./visuals.js?v=4";
+import { startEvents, setEventsEnabled } from "./events.js?v=4";
 
 let mode = "cruise";
 let booted = false;
@@ -170,6 +170,7 @@ function wirePad() {
   const pad = $("#pad"), puckEl = $("#puck");
   let nx = 0.5, ny = 0.54, vx = 0, vy = 0;
   let lastX = nx, lastY = ny, dragging = false, gliding = false, raf = 0;
+  const locked = [false, false, false];
 
   const setPuckEl = () => { puckEl.style.left = (nx * 100) + "%"; puckEl.style.top = (ny * 100) + "%"; };
 
@@ -190,7 +191,7 @@ function wirePad() {
     for (let i = 0; i < 3; i++) {
       const node = document.querySelector(`.node[data-node="${NODES[i].id}"]`);
       const active = w[i] > 0.45; if (node) node.dataset.active = String(active);
-      if (w[i] > 0.72 && !locked[i]) { locked[i] = true; A.playVoice("lock", false); }
+      if (w[i] > 0.72 && !locked[i]) { locked[i] = true; A.triggerShot("sonar"); }   // no "lock" voice asset exists; sonar ping is the lock cue
       if (w[i] < 0.5) locked[i] = false;
     }
     V.setPuck(nx, ny, w, dragging || gliding);
