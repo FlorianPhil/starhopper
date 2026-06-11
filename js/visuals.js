@@ -2,8 +2,8 @@
 // Canopy = forward window (3D starfield -> warp streaks, reticle, contacts,
 // horizon glow). Pad = triangulation lines + a live oscilloscope of the REAL
 // processed signal. No orbiting circles, no pulsing-ring motif.
-import { MODES, NODES } from "./config.js?v=4";
-import { getLevel, getState, triggerShot } from "./audio.js?v=4";
+import { MODES, NODES } from "./config.js?v=5";
+import { getLevel, getState, triggerShot } from "./audio.js?v=5";
 
 let scope, sctx, pad, pctx;
 let SW = 0, SH = 0, PW = 0, PH = 0, DPR = 1;

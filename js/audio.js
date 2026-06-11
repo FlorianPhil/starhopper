@@ -2,7 +2,7 @@
 // Real recorded files only. The triangulation pad processes a real RADIO-static
 // source through a true DSP chain (filter / distortion / bitcrush / feedback
 // delay / spatial pan) so moving the puck sounds like tuning a signal.
-import { AUDIO, MODES } from "./config.js?v=4";
+import { AUDIO, MODES } from "./config.js?v=5";
 
 let beds, loops, shots, voices, signalSrc;
 let master, limiter, musicBus, sfxBus, voiceBus, signalGain;
@@ -16,6 +16,16 @@ export function getState() { return state; }
 
 // ---- build graph + load every buffer ----
 export async function initAudio() {
+  // iOS fix: Tone's default context uses latencyHint "interactive", which gives
+  // iOS Safari/Chrome a tiny render buffer. Under our two canvas RAF loops + the
+  // live BitCrusher FX chain that buffer underruns, chopping playback several
+  // times a second. A "playback" context uses a large buffer (the standard choice
+  // for music/ambient web audio) so loops stay continuous. Must be set BEFORE any
+  // Tone node is created, since latencyHint is fixed at context construction.
+  try {
+    Tone.setContext(new Tone.Context({ latencyHint: "playback", lookAhead: 0.1, updateInterval: 0.05 }));
+  } catch (e) { console.warn("audio context setup failed, using default", e); }
+
   master = new Tone.Volume(0);
   limiter = new Tone.Limiter(-1);
   master.connect(limiter); limiter.toDestination();
@@ -59,7 +69,7 @@ export async function initAudio() {
   ready = true;
 }
 
-export async function unlock() { await Tone.start(); Tone.getContext().lookAhead = 0.02; }
+export async function unlock() { await Tone.start(); }
 
 // ---- boot: spin up the ship ----
 export function bootAudio() {
