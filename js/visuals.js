@@ -48,6 +48,7 @@ function size(cv, ctx, set) {
 
 let frameCount = 0, useFallback = false, fbTimer = 0;
 export function startVisuals() {
+  if (window.__NOVIS) return;   // TEMP DIAG: skip canvas RAF loops for A/B. Remove after diagnosis.
   if (running) return; running = true; last = performance.now();
   requestAnimationFrame(loop);
   // watchdog: if rAF is throttled/paused (backgrounded tab), keep rendering via a timer

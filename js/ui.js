@@ -56,8 +56,8 @@ async function runBootSequence() {
     gsap.from("#deck > *", { y: 16, duration: 0.7, stagger: 0.06, ease: "power3.out", clearProps: "transform" });
   await sleep(300);
   A.playVoice("boot");
-  sys.engine = true; sys.scanner = true;
-  reflectSwitch("engine"); reflectSwitch("scanner");
+  sys.engine = true;
+  reflectSwitch("engine");
   V.setPadLive(true);
   startEvents();
 }
@@ -112,7 +112,8 @@ function toggleSystem(name, force) {
   sys[name] = force !== undefined ? force : !sys[name];
   reflectSwitch(name);
   A.setLoop(name, sys[name]);
-  A.triggerShot("dock");
+  const TOGGLE_SOUNDS = { engine: "thruster", shields: "impact", scanner: "pulse" };
+  A.triggerShot(TOGGLE_SOUNDS[name] || "dock");
 }
 function reflectSwitch(name) {
   const sw = document.querySelector(`.switch[data-system="${name}"]`);
@@ -174,6 +175,7 @@ function wirePad() {
 
   const setPuckEl = () => { puckEl.style.left = (nx * 100) + "%"; puckEl.style.top = (ny * 100) + "%"; };
 
+  const ZONE_NAMES = ["DELTA", "SIGMA", "OMEGA"];
   function compute() {
     let w = [0, 0, 0], sum = 0;
     for (let i = 0; i < 3; i++) {
@@ -181,27 +183,27 @@ function wirePad() {
       w[i] = 1 / (dx * dx + dy * dy + 0.012); sum += w[i];
     }
     for (let i = 0; i < 3; i++) w[i] /= sum;
-    const active = Math.max(w[0], w[1], w[2]);
-    const filterFreq = 180 * Math.pow(70, clamp(0.06 + w[2] * 1.0, 0, 1));   // omega = bright/clear signal
-    const delayWet = w[0] * 0.85, delayFb = 0.1 + w[0] * 0.62;               // delta = echo / space
-    const bits = 8 - w[1] * 6, crushWet = clamp(w[1] * 1.1, 0, 1), distWet = w[1] * 0.7; // sigma = static / crush
-    const pan = clamp((nx - 0.5) * 1.8, -1, 1);
-    A.setSignalFx({ filterFreq, delayFb, delayWet, bits, crushWet, distWet, pan, active });
-    readout(filterFreq, delayFb, crushWet, pan);
+    A.padSetPos(nx, ny, w);
+    readout(nx, ny, w);
     for (let i = 0; i < 3; i++) {
       const node = document.querySelector(`.node[data-node="${NODES[i].id}"]`);
       const active = w[i] > 0.45; if (node) node.dataset.active = String(active);
-      if (w[i] > 0.72 && !locked[i]) { locked[i] = true; A.triggerShot("sonar"); }   // no "lock" voice asset exists; sonar ping is the lock cue
+      if (w[i] > 0.72 && !locked[i]) { locked[i] = true; A.triggerShot("sonar"); }
       if (w[i] < 0.5) locked[i] = false;
     }
     V.setPuck(nx, ny, w, dragging || gliding);
   }
 
-  function readout(f, fb, crush, pan) {
-    $("#fx-filter").textContent = f >= 1000 ? (f / 1000).toFixed(1) + "k" : Math.round(f);
-    $("#fx-delay").textContent = Math.round(fb * 100) + "%";
-    $("#fx-crush").textContent = Math.round(crush * 100) + "%";
-    $("#fx-space").textContent = Math.abs(pan) < 0.08 ? "C" : (pan < 0 ? "L" : "R") + Math.round(Math.abs(pan) * 50);
+  function readout(x, y, w) {
+    const note   = A.getPadNoteName(x);
+    const best   = w.indexOf(Math.max(w[0], w[1], w[2]));
+    const echo   = Math.round((0.06 + w[0] * 0.60) * 100);
+    const timbre = w[1] > 0.55 ? "DARK" : w[0] > 0.55 ? "WARM" : "BRIGHT";
+    const n = $("#fx-filter"), e = $("#fx-delay"), z = $("#fx-crush"), t = $("#fx-space");
+    if (n) n.textContent = note;
+    if (e) e.textContent = echo + "%";
+    if (z) z.textContent = ZONE_NAMES[best] || "—";
+    if (t) t.textContent = timbre;
   }
 
   const ptr = (e) => { const r = pad.getBoundingClientRect(); return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) }; };
@@ -212,7 +214,7 @@ function wirePad() {
     pad.classList.add("touched", "grabbing");
     dragging = true; gliding = false;
     const p = ptr(e); nx = p.x; ny = p.y; lastX = nx; lastY = ny; vx = vy = 0;
-    setPuckEl(); compute(); tick();
+    setPuckEl(); compute(); A.padAttack(nx); tick();
   });
   pad.addEventListener("pointermove", (e) => {
     if (!dragging) return;
@@ -222,6 +224,7 @@ function wirePad() {
   const release = () => {
     if (!dragging) return;
     dragging = false; pad.classList.remove("grabbing");
+    A.padRelease();
     gliding = true; tick();
   };
   pad.addEventListener("pointerup", release);
@@ -280,6 +283,13 @@ function wireChrome() {
     const on = swMusic.getAttribute("aria-pressed") !== "true";
     swMusic.setAttribute("aria-pressed", String(on));
     A.setMusicOnly(on);
+  });
+  const swBright = $("#sw-bright");
+  if (swBright) swBright.addEventListener("click", () => {
+    const on = swBright.getAttribute("aria-pressed") !== "true";
+    swBright.setAttribute("aria-pressed", String(on));
+    document.body.dataset.theme = on ? "bright" : "";
+    A.triggerShot("dock");
   });
 }
 

@@ -1,12 +1,13 @@
 // STARHOPPER — audio engine (Tone.js).
-// Real recorded files only. The triangulation pad processes a real RADIO-static
-// source through a true DSP chain (filter / distortion / bitcrush / feedback
-// delay / spatial pan) so moving the puck sounds like tuning a signal.
+// Signal pad: theremin-style synth (pentatonic X-axis, zone-based timbre+echo).
+// System toggles each have a distinct click sound. Scanner starts off.
 import { AUDIO, MODES } from "./config.js?v=5";
 
-let beds, loops, shots, voices, signalSrc;
-let master, limiter, musicBus, sfxBus, voiceBus, signalGain;
-let filter, dist, crusher, delay, panner, sigWave, meter;
+let beds, loops, shots, voices;
+let master, limiter, musicBus, sfxBus, voiceBus, meter;
+let padSynth, padFilter, padDelay, padGain, padPlaying = false;
+const PAD_FREQS = [130.8, 146.8, 164.8, 196.0, 220.0, 261.6, 293.7, 329.6, 392.0, 440.0, 523.3];
+const PAD_NOTES = ["C3","D3","E3","G3","A3","C4","D4","E4","G4","A4","C5"];
 let ready = false, activeBed = "cruise";
 
 const state = { mode: "cruise", muted: false, throttle: 0.55, engineOn: false, musicOnly: false, voiceUntil: 0 };
@@ -35,17 +36,14 @@ export async function initAudio() {
   sfxBus   = new Tone.Volume(-1).connect(master);
   voiceBus = new Tone.Volume(3).connect(master);
 
-  // --- signal FX chain: tunes a radio-static source, live, from the pad ---
-  filter  = new Tone.Filter({ type: "lowpass", frequency: 1200, Q: 2.2, rolloff: -24 });
-  dist    = new Tone.Distortion({ distortion: 0.6, wet: 0 });
-  crusher = new Tone.BitCrusher({ bits: 8 });
-  delay   = new Tone.FeedbackDelay({ delayTime: 0.19, feedback: 0.2, wet: 0 });
-  panner  = new Tone.Panner(0);
-  signalGain = new Tone.Volume(-60).connect(master);
-  setBits(8); setWet(crusher, 0);
-  signalSrc = new Tone.Player({ url: AUDIO.base + AUDIO.signal, loop: true, loopStart: 1.0, loopEnd: 9.5, fadeIn: 0.3, fadeOut: 0.4 });
-  signalSrc.chain(filter, dist, crusher, delay, panner, signalGain);
-  sigWave = new Tone.Waveform(256); panner.connect(sigWave);
+  // --- signal pad: theremin-style synth (X=pitch, zones=timbre/echo) ---
+  padFilter = new Tone.Filter({ type: "bandpass", frequency: 1200, Q: 1.2 });
+  padDelay  = new Tone.FeedbackDelay({ delayTime: 0.28, feedback: 0.35, wet: 0.3 });
+  padGain   = new Tone.Volume(-16).connect(master);
+  padSynth  = new Tone.Synth({
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.2, decay: 0.12, sustain: 0.78, release: 2.4 }
+  }).chain(padFilter, padDelay, padGain);
 
   beds   = new Tone.Players({ urls: AUDIO.music, baseUrl: AUDIO.base, fadeIn: 0.4, fadeOut: 0.6 }).connect(musicBus);
   loops  = new Tone.Players({ urls: AUDIO.loops, baseUrl: AUDIO.base, fadeIn: 0.25, fadeOut: 0.4 }).connect(sfxBus);
@@ -69,7 +67,7 @@ export async function initAudio() {
   ready = true;
 }
 
-export async function unlock() { await Tone.start(); }
+export async function unlock() { await Tone.start(); setupAutoResume(); }
 
 // ---- boot: spin up the ship ----
 export function bootAudio() {
@@ -77,11 +75,7 @@ export function bootAudio() {
   for (const key of Object.keys(AUDIO.music)) { const p = beds.player(key); p.volume.value = -60; if (p.state !== "started") p.start(); }
   activeBed = m.bed;
   beds.player(m.bed).volume.rampTo(m.bedDb, 0.8);
-  // signal array is always live once booted (the pad always tunes it)
-  if (signalSrc.state !== "started") signalSrc.start();
-  signalGain.volume.rampTo(-12, 0.8);
   setLoop("engine", true, 0.9);
-  setLoop("scanner", true, 0.9);   // computer / calculating ambience
   applyThrottle(state.throttle);
 }
 
@@ -143,36 +137,58 @@ export function playVoice(key, duck = true) {
   return dur;
 }
 
-// ---- triangulation FX (called every pad frame) ----
-export function setSignalFx(p) {
-  if (!ready) return;
-  filter.frequency.rampTo(p.filterFreq, 0.04);
-  delay.feedback.rampTo(p.delayFb, 0.08);
-  delay.wet.rampTo(p.delayWet, 0.08);
-  setBits(p.bits);
-  setWet(crusher, p.crushWet);
-  dist.wet.rampTo(p.distWet, 0.08);
-  panner.pan.rampTo(p.pan, 0.12);
-  if (signalGain && !state.musicOnly) signalGain.volume.rampTo(-12 + (p.active || 0) * 6, 0.15);
+// ---- signal pad: theremin-style synth ----
+function applyPadParams(x, y, w) {
+  padFilter.frequency.rampTo(250 + w[2] * 5000, 0.07);   // omega = bright/open
+  padFilter.Q.rampTo(0.6 + w[0] * 3.0, 0.1);              // delta = resonant
+  padDelay.feedback.rampTo(0.08 + w[0] * 0.62, 0.1);      // delta = echo
+  padDelay.wet.rampTo(0.06 + w[0] * 0.60, 0.1);
+  padGain.volume.rampTo(-16 - w[1] * 3 + w[2] * 7, 0.08); // sigma=dark, omega=bright
+}
+export function padAttack(x) {
+  if (!ready || state.musicOnly || padPlaying) return;
+  padSynth.triggerAttack(PAD_FREQS[Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length))], "+0.01");
+  padPlaying = true;
+}
+export function padRelease() {
+  if (!padPlaying) return;
+  padSynth.triggerRelease();
+  padPlaying = false;
+}
+export function padSetPos(x, y, w) {
+  if (!ready || state.musicOnly) return;
+  const idx = Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length));
+  if (padPlaying) padSynth.frequency.rampTo(PAD_FREQS[idx], 0.08);
+  applyPadParams(x, y, w);
+}
+export function getPadNoteName(x) {
+  return PAD_NOTES[Math.min(PAD_NOTES.length - 1, Math.floor(x * PAD_NOTES.length))];
+}
+
+// ---- CarPlay / iOS background audio resume ----
+// When phone goes behind CarPlay UI or another app interrupts (Siri, Maps),
+// the AudioContext gets suspended. Resume on any re-surface event.
+function setupAutoResume() {
+  const ctx = Tone.getContext().rawContext;
+  const tryResume = () => { if (ctx.state !== "running") ctx.resume().catch(() => {}); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tryResume(); });
+  ctx.addEventListener("statechange", () => { if (ctx.state === "suspended") setTimeout(tryResume, 200); });
+  document.addEventListener("pointerdown", tryResume, { passive: true });
 }
 
 export function setMuted(m) { state.muted = m; master.mute = m; }
-
 export function setMusicOnly(on) {
   state.musicOnly = on;
   const t = 0.3;
   sfxBus.volume.rampTo(on ? -60 : -1, t);
   voiceBus.volume.rampTo(on ? -60 : 3, t);
-  signalGain.volume.rampTo(on ? -60 : -12, t);
+  padGain.volume.rampTo(on ? -60 : -16, t);
+  if (on && padPlaying) { padSynth.triggerRelease(); padPlaying = false; }
 }
-
-export function getSignalWaveform() { return sigWave ? sigWave.getValue() : null; }
+export function getSignalWaveform() { return null; }
 export function getLevel() {
   if (!meter) return 0;
   const db = meter.getValue();
   const v = Array.isArray(db) ? Math.max(db[0], db[1]) : db;
   return Math.max(0, Math.min(1, (v + 48) / 48));
 }
-
-function setBits(n) { try { crusher.bits.value = n; } catch (e) { try { crusher.bits = n; } catch (_) {} } }
-function setWet(node, w) { try { node.wet.value = w; } catch (e) {} }

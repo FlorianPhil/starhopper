@@ -131,10 +131,10 @@
     <div class="signal-head">
       <span class="signal-title">SIGNAL ARRAY</span>
       <div class="fx-readout" aria-hidden="true">
-        <span class="fx-chip" data-fx="filter">FILTER<i id="fx-filter">—</i></span>
-        <span class="fx-chip" data-fx="delay">DELAY<i id="fx-delay">—</i></span>
-        <span class="fx-chip" data-fx="crush">CRUSH<i id="fx-crush">—</i></span>
-        <span class="fx-chip" data-fx="space">SPACE<i id="fx-space">—</i></span>
+        <span class="fx-chip" data-fx="filter">NOTE<i id="fx-filter">—</i></span>
+        <span class="fx-chip" data-fx="delay">ECHO<i id="fx-delay">—</i></span>
+        <span class="fx-chip" data-fx="crush">ZONE<i id="fx-crush">—</i></span>
+        <span class="fx-chip" data-fx="space">TIMBRE<i id="fx-space">—</i></span>
       </div>
     </div>
     <div id="pad" aria-label="Signal triangulation pad. Drag to tune the signal.">
@@ -143,7 +143,7 @@
       <span class="node" data-node="sigma" style="--nx:15%;--ny:84%"><i></i><b>SIGMA</b></span>
       <span class="node" data-node="omega" style="--nx:85%;--ny:84%"><i></i><b>OMEGA</b></span>
       <div id="puck"><span class="puck-core"></span><span class="puck-ping"></span></div>
-      <span id="pad-hint">drag to triangulate</span>
+      <span id="pad-hint">touch to play</span>
     </div>
   </section>
 </main>
@@ -175,6 +175,11 @@
     <button class="set-switch" id="sw-music" type="button" aria-pressed="false">
       <span class="switch-led"></span>
       <span class="set-switch-label">Music only <em>mute instruments &amp; voice</em></span>
+      <span class="switch-rocker"><i></i></span>
+    </button>
+    <button class="set-switch" id="sw-bright" type="button" aria-pressed="false">
+      <span class="switch-led"></span>
+      <span class="set-switch-label">Bright mode <em>high contrast for sunlight</em></span>
       <span class="switch-rocker"><i></i></span>
     </button>
     <p class="set-note">Music Only keeps the cinematic soundtrack and silences the engine, effects, and announcements.</p>
