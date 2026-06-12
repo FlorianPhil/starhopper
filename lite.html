@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>STARHOPPER — Audio Lite</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a14; color: #c2f1f7; font-family: system-ui, monospace; padding: 24px 16px; min-height: 100dvh; }
+  h1 { font-size: 1rem; letter-spacing: 0.18em; color: #4fd6e6; margin-bottom: 4px; }
+  p.sub { font-size: 0.72rem; color: #4fd6e680; margin-bottom: 24px; letter-spacing: 0.06em; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 0.68rem; letter-spacing: 0.14em; color: #4fd6e690; margin-bottom: 10px; text-transform: uppercase; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    background: #111827; border: 1px solid #4fd6e640; color: #c2f1f7;
+    border-radius: 8px; padding: 14px 18px; font-size: 0.8rem;
+    letter-spacing: 0.08em; cursor: pointer; min-width: 90px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:active { background: #1d6f8640; }
+  button.active { border-color: #4fd6e6; color: #4fd6e6; background: #4fd6e614; }
+  button.danger { border-color: #ff5a5a60; color: #ff9090; }
+  #unlock-btn { width: 100%; padding: 18px; font-size: 1rem; border-color: #4fd6e6; color: #4fd6e6; }
+  #status { font-size: 0.72rem; color: #4fd6e680; margin-top: 20px; min-height: 1.4em; }
+  #pad-area {
+    width: 100%; height: 160px; background: #111827;
+    border: 1px solid #4fd6e640; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; color: #4fd6e650; letter-spacing: 0.1em;
+    touch-action: none; user-select: none; cursor: crosshair;
+  }
+  #pad-area.active { border-color: #9c8dff; color: #9c8dff; background: #9c8dff0a; }
+</style>
+</head>
+<body>
+<h1>STARHOPPER — AUDIO LITE</h1>
+<p class="sub">No canvas. No animations. Buttons + audio only. Diagnostic build.</p>
+
+<button id="unlock-btn">TAP TO UNLOCK AUDIO</button>
+
+<div id="status">Tap above to initialise audio engine.</div>
+
+<section id="controls" style="display:none">
+  <section>
+    <h2>Music Bed</h2>
+    <div class="row" id="bed-btns">
+      <button data-bed="cruise">CRUISE</button>
+      <button data-bed="combat">COMBAT</button>
+      <button data-bed="stealth">STEALTH</button>
+      <button data-bed="warp">WARP</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Loops</h2>
+    <div class="row">
+      <button id="engine-btn">ENGINE OFF</button>
+      <button id="shields-btn">SHIELDS OFF</button>
+      <button id="scanner-btn">SCANNER OFF</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Throttle</h2>
+    <div class="row">
+      <button data-throttle="0.1">SLOW</button>
+      <button data-throttle="0.55" class="active">MID</button>
+      <button data-throttle="1.0">FULL</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Signal Pad (touch / drag)</h2>
+    <div id="pad-area">TOUCH TO PLAY</div>
+  </section>
+
+  <section>
+    <h2>One-shots</h2>
+    <div class="row">
+      <button data-shot="thruster">THRUSTER</button>
+      <button data-shot="pulse">PULSE</button>
+      <button data-shot="missile">MISSILE</button>
+      <button data-shot="dock">DOCK</button>
+      <button data-shot="impact">IMPACT</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Mute</h2>
+    <div class="row">
+      <button id="mute-btn" class="danger">MUTE ALL</button>
+    </div>
+  </section>
+</section>
+
+<script src="js/vendor/Tone.js"></script>
+<script>
+// ---- Audio config (mirrors config.js) ----
+const BASE = "audio/";
+const MUSIC = { cruise:"music/cruise.mp3", combat:"music/combat.mp3", stealth:"music/stealth.mp3", warp:"music/warp.mp3" };
+const LOOPS = { engine:"sfx/engine_loop.mp3", shields:"sfx/shield_loop.mp3", scanner:"sfx/computer_loop.mp3" };
+const SHOTS = { thruster:"sfx/thruster.mp3", pulse:"sfx/pulse.mp3", missile:"sfx/missile.mp3", dock:"sfx/dock.mp3", impact:"sfx/impact.mp3" };
+const LOOP_TRIM = {
+  engine:  [1.0, 9.3],
+  shields: [0.8, 4.6],
+  scanner: [0.55, 1.9],
+  cruise:  [0.1, 89.75],
+  combat:  [0.35, 89.75],
+  stealth: [0.35, 89.75],
+  warp:    [0.35, 89.75]
+};
+const MODE_DB = { cruise:-10, combat:-9, stealth:-14, warp:-9 };
+const MODE_RATE = { cruise:0.86, combat:1.16, stealth:0.58, warp:1.55 };
+
+// ---- State ----
+let beds, loops, shots;
+let master, limiter, musicBus, sfxBus;
+let padSynth, padFilter, padDelay, padGain;
+let padFxActive = false, padBypassTimer = null, padPlaying = false;
+let activeBed = "cruise", throttle = 0.55, engineOn = false, muted = false;
+
+const PAD_FREQS = [130.8,146.8,164.8,196.0,220.0,261.6,293.7,329.6,392.0,440.0,523.3];
+
+const status = document.getElementById("status");
+function log(msg) { status.textContent = msg; }
+
+// ---- Init ----
+async function init() {
+  try {
+    Tone.setContext(new Tone.Context({ latencyHint:"playback", lookAhead:0.1, updateInterval:0.05 }));
+  } catch(e) { console.warn("ctx setup failed", e); }
+
+  master  = new Tone.Volume(0);
+  limiter = new Tone.Limiter(-1);
+  master.connect(limiter); limiter.toDestination();
+
+  musicBus = new Tone.Volume(0).connect(master);
+  sfxBus   = new Tone.Volume(-1).connect(master);
+
+  // Pad chain — FX disconnected at rest
+  padFilter = new Tone.Filter({ type:"bandpass", frequency:1200, Q:1.2 });
+  padDelay  = new Tone.FeedbackDelay({ delayTime:0.28, feedback:0.35, wet:0.3 });
+  padGain   = new Tone.Volume(-16).connect(master);
+  padSynth  = new Tone.Synth({
+    oscillator:{ type:"triangle" },
+    envelope:{ attack:0.2, decay:0.12, sustain:0.78, release:2.4 }
+  });
+  padSynth.connect(padFilter);
+  padFilter.connect(padGain);
+
+  beds  = new Tone.Players({ urls: MUSIC, baseUrl: BASE, fadeIn:0.4, fadeOut:0.6 }).connect(musicBus);
+  loops = new Tone.Players({ urls: LOOPS, baseUrl: BASE, fadeIn:0.25, fadeOut:0.4 }).connect(sfxBus);
+  shots = new Tone.Players({ urls: SHOTS, baseUrl: BASE }).connect(sfxBus);
+
+  log("Loading audio files…");
+  await Tone.loaded();
+
+  for (const k of Object.keys(MUSIC)) {
+    const p = beds.player(k);
+    p.loop = true;
+    const [s,e] = LOOP_TRIM[k]; p.loopStart=s; p.loopEnd=e;
+  }
+  for (const k of Object.keys(LOOPS)) {
+    const p = loops.player(k);
+    p.loop = true;
+    const [s,e] = LOOP_TRIM[k]; p.loopStart=s; p.loopEnd=e;
+  }
+
+  // CarPlay resume
+  const ctx = Tone.getContext().rawContext;
+  const tryResume = () => { if (ctx.state !== "running") ctx.resume().catch(()=>{}); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) tryResume(); });
+  ctx.addEventListener("statechange", () => { if (ctx.state === "suspended") setTimeout(tryResume, 200); });
+  document.addEventListener("pointerdown", tryResume, { passive:true });
+
+  // Boot: start only active bed
+  const p = beds.player(activeBed);
+  p.volume.value = -60;
+  if (p.state !== "started") p.start();
+  p.volume.rampTo(MODE_DB[activeBed], 0.8);
+
+  document.getElementById("controls").style.display = "";
+  document.querySelectorAll("[data-bed]").forEach(b => {
+    b.classList.toggle("active", b.dataset.bed === activeBed);
+  });
+  log("Audio ready. Active bed: " + activeBed.toUpperCase());
+}
+
+// ---- Pad FX bypass ----
+function insertPadFx() {
+  if (padFxActive) return; padFxActive = true;
+  try { padFilter.disconnect(padGain); padFilter.connect(padDelay); padDelay.connect(padGain); } catch(e) {}
+}
+function bypassPadFx() {
+  if (!padFxActive) return; padFxActive = false;
+  try { padFilter.disconnect(padDelay); padDelay.disconnect(padGain); padFilter.connect(padGain); } catch(e) {}
+}
+
+// ---- Controls ----
+document.getElementById("unlock-btn").addEventListener("click", async () => {
+  document.getElementById("unlock-btn").textContent = "INITIALISING…";
+  await Tone.start();
+  await init();
+  document.getElementById("unlock-btn").style.display = "none";
+});
+
+document.querySelectorAll("[data-bed]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const next = btn.dataset.bed;
+    if (next === activeBed) return;
+    const oldP = beds.player(activeBed);
+    oldP.volume.cancelScheduledValues(Tone.now());
+    oldP.volume.rampTo(-60, 1.1);
+    oldP.stop("+1.35");
+    const newP = beds.player(next);
+    newP.volume.cancelScheduledValues(Tone.now());
+    newP.volume.value = -60;
+    if (newP.state === "started") newP.restart(); else newP.start();
+    newP.volume.rampTo(MODE_DB[next], 1.1);
+    activeBed = next;
+    applyThrottle(throttle);
+    document.querySelectorAll("[data-bed]").forEach(b => b.classList.toggle("active", b.dataset.bed===next));
+    log("Bed: " + next.toUpperCase());
+  });
+});
+
+const engBtn = document.getElementById("engine-btn");
+engBtn.addEventListener("click", () => {
+  engineOn = !engineOn;
+  const p = loops.player("engine");
+  if (engineOn) {
+    if (p.state !== "started") p.start();
+    applyThrottle(throttle);
+    engBtn.textContent = "ENGINE ON"; engBtn.classList.add("active");
+  } else {
+    p.volume.rampTo(-60, 0.4);
+    engBtn.textContent = "ENGINE OFF"; engBtn.classList.remove("active");
+  }
+});
+
+const shieldsBtn = document.getElementById("shields-btn");
+let shieldsOn = false;
+shieldsBtn.addEventListener("click", () => {
+  shieldsOn = !shieldsOn;
+  const p = loops.player("shields");
+  if (shieldsOn) { if (p.state !== "started") p.start(); p.volume.rampTo(-13, 0.4); shieldsBtn.textContent="SHIELDS ON"; shieldsBtn.classList.add("active"); }
+  else { p.volume.rampTo(-60, 0.4); shieldsBtn.textContent="SHIELDS OFF"; shieldsBtn.classList.remove("active"); }
+});
+
+const scannerBtn = document.getElementById("scanner-btn");
+let scannerOn = false;
+scannerBtn.addEventListener("click", () => {
+  scannerOn = !scannerOn;
+  const p = loops.player("scanner");
+  if (scannerOn) { if (p.state !== "started") p.start(); p.volume.rampTo(-15, 0.4); scannerBtn.textContent="SCANNER ON"; scannerBtn.classList.add("active"); }
+  else { p.volume.rampTo(-60, 0.4); scannerBtn.textContent="SCANNER OFF"; scannerBtn.classList.remove("active"); }
+});
+
+function applyThrottle(v) {
+  throttle = v;
+  try {
+    const eng = loops.player("engine");
+    eng.playbackRate = MODE_RATE[activeBed] * (0.55 + v * 1.15);
+    if (engineOn) eng.volume.rampTo(-16 + v * 14, 0.12);
+    beds.player(activeBed).playbackRate = 0.9 + v * 0.3;
+    musicBus.volume.rampTo(-3.5 + v * 4, 0.2);
+  } catch(e) {}
+}
+
+document.querySelectorAll("[data-throttle]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    applyThrottle(parseFloat(btn.dataset.throttle));
+    document.querySelectorAll("[data-throttle]").forEach(b => b.classList.toggle("active", b===btn));
+    log("Throttle: " + btn.textContent);
+  });
+});
+
+document.querySelectorAll("[data-shot]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    try { shots.player(btn.dataset.shot).start(); } catch(e) {}
+  });
+});
+
+document.getElementById("mute-btn").addEventListener("click", () => {
+  muted = !muted;
+  master.mute = muted;
+  const b = document.getElementById("mute-btn");
+  b.textContent = muted ? "UNMUTE ALL" : "MUTE ALL";
+  b.classList.toggle("active", muted);
+});
+
+// ---- Signal pad ----
+const padArea = document.getElementById("pad-area");
+function padX(e) {
+  const r = padArea.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  return Math.max(0, Math.min(1, (cx - r.left) / r.width));
+}
+function onPadDown(e) {
+  e.preventDefault();
+  if (!padSynth || padPlaying) return;
+  if (padBypassTimer) { clearTimeout(padBypassTimer); padBypassTimer = null; }
+  insertPadFx();
+  const x = padX(e);
+  const freq = PAD_FREQS[Math.min(PAD_FREQS.length-1, Math.floor(x*PAD_FREQS.length))];
+  padSynth.triggerAttack(freq, "+0.01");
+  padPlaying = true;
+  padArea.classList.add("active");
+  padArea.textContent = "♦ SIGNAL LOCK";
+}
+function onPadMove(e) {
+  e.preventDefault();
+  if (!padPlaying) return;
+  const x = padX(e);
+  const freq = PAD_FREQS[Math.min(PAD_FREQS.length-1, Math.floor(x*PAD_FREQS.length))];
+  padSynth.frequency.rampTo(freq, 0.08);
+  padFilter.frequency.rampTo(250 + x * 5000, 0.07);
+}
+function onPadUp(e) {
+  if (!padPlaying) return;
+  padSynth.triggerRelease(); padPlaying = false;
+  padArea.classList.remove("active");
+  padArea.textContent = "TOUCH TO PLAY";
+  if (padBypassTimer) clearTimeout(padBypassTimer);
+  padBypassTimer = setTimeout(() => { bypassPadFx(); padBypassTimer = null; }, 3200);
+}
+padArea.addEventListener("pointerdown", onPadDown);
+padArea.addEventListener("pointermove", onPadMove);
+padArea.addEventListener("pointerup", onPadUp);
+padArea.addEventListener("pointercancel", onPadUp);
+</script>
+</body>
+</html>
