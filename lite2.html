@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>STARHOPPER — Audio Element Test</title>
+<style>
+  body { background:#0a0a14; color:#c2f1f7; font-family:system-ui,monospace; padding:32px 20px; }
+  h1 { font-size:0.9rem; letter-spacing:0.16em; color:#4fd6e6; margin-bottom:6px; }
+  p { font-size:0.72rem; color:#4fd6e680; margin-bottom:32px; }
+  button {
+    display:block; width:100%; padding:20px;
+    background:#111827; border:1px solid #4fd6e640; color:#c2f1f7;
+    border-radius:10px; font-size:1rem; letter-spacing:0.1em;
+    cursor:pointer; margin-bottom:14px;
+  }
+  button.active { border-color:#4fd6e6; color:#4fd6e6; }
+  #log { font-size:0.7rem; color:#4fd6e660; margin-top:20px; line-height:1.8; }
+</style>
+</head>
+<body>
+<h1>AUDIO ELEMENT TEST</h1>
+<p>No Web Audio API. No Tone.js. Just &lt;audio loop&gt;. Tap play and listen for stutter.</p>
+
+<button id="play-btn">▶ PLAY CRUISE BED</button>
+<button id="stop-btn" style="display:none">■ STOP</button>
+
+<div id="log"></div>
+
+<audio id="player" loop preload="auto" src="audio/music/cruise.mp3"></audio>
+
+<script>
+const player = document.getElementById("player");
+const playBtn = document.getElementById("play-btn");
+const stopBtn = document.getElementById("stop-btn");
+const log = document.getElementById("log");
+
+function addLog(msg) {
+  const t = new Date().toLocaleTimeString();
+  log.innerHTML = `[${t}] ${msg}<br>` + log.innerHTML;
+}
+
+playBtn.addEventListener("click", async () => {
+  try {
+    await player.play();
+    playBtn.style.display = "none";
+    stopBtn.style.display = "block";
+    stopBtn.classList.add("active");
+    addLog("Playing — listen for stutter");
+  } catch(e) {
+    addLog("Error: " + e.message);
+  }
+});
+
+stopBtn.addEventListener("click", () => {
+  player.pause();
+  player.currentTime = 0;
+  stopBtn.style.display = "none";
+  playBtn.style.display = "block";
+  addLog("Stopped");
+});
+
+player.addEventListener("playing", () => addLog("▶ playing"));
+player.addEventListener("pause",   () => addLog("⏸ paused"));
+player.addEventListener("waiting", () => addLog("⏳ waiting (buffering?)"));
+player.addEventListener("stalled", () => addLog("⚠ stalled"));
+player.addEventListener("suspend", () => addLog("⚠ suspend"));
+player.addEventListener("error",   () => addLog("✕ error: " + (player.error?.message || "?")));
+</script>
+</body>
+</html>
