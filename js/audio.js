@@ -1,11 +1,12 @@
 // STARHOPPER — audio engine (Tone.js).
 // Signal pad: theremin-style synth (pentatonic X-axis, zone-based timbre+echo).
 // System toggles each have a distinct click sound. Scanner starts off.
-import { AUDIO, MODES } from "./config.js?v=5";
+import { AUDIO, MODES } from "./config.js?v=6";
 
 let beds, loops, shots, voices;
 let master, limiter, musicBus, sfxBus, voiceBus, meter;
 let padSynth, padFilter, padDelay, padGain, padPlaying = false;
+let padFxActive = false, padBypassTimer = null;
 const PAD_FREQS = [130.8, 146.8, 164.8, 196.0, 220.0, 261.6, 293.7, 329.6, 392.0, 440.0, 523.3];
 const PAD_NOTES = ["C3","D3","E3","G3","A3","C4","D4","E4","G4","A4","C5"];
 let ready = false, activeBed = "cruise";
@@ -43,7 +44,12 @@ export async function initAudio() {
   padSynth  = new Tone.Synth({
     oscillator: { type: "triangle" },
     envelope: { attack: 0.2, decay: 0.12, sustain: 0.78, release: 2.4 }
-  }).chain(padFilter, padDelay, padGain);
+  });
+  // FX-bypassed by default: padSynth -> padFilter -> padGain (dry). The
+  // FeedbackDelay is left disconnected so it doesn't render continuously on the
+  // audio thread while the pad is idle; it's inserted only while the pad plays.
+  padSynth.connect(padFilter);
+  padFilter.connect(padGain);
 
   beds   = new Tone.Players({ urls: AUDIO.music, baseUrl: AUDIO.base, fadeIn: 0.4, fadeOut: 0.6 }).connect(musicBus);
   loops  = new Tone.Players({ urls: AUDIO.loops, baseUrl: AUDIO.base, fadeIn: 0.25, fadeOut: 0.4 }).connect(sfxBus);
@@ -72,9 +78,13 @@ export async function unlock() { await Tone.start(); setupAutoResume(); }
 // ---- boot: spin up the ship ----
 export function bootAudio() {
   const m = MODES[state.mode];
-  for (const key of Object.keys(AUDIO.music)) { const p = beds.player(key); p.volume.value = -60; if (p.state !== "started") p.start(); }
+  // Start ONLY the active mode's bed. The other three beds stay stopped so they
+  // cost nothing on the audio thread (a muted-but-running player still renders).
   activeBed = m.bed;
-  beds.player(m.bed).volume.rampTo(m.bedDb, 0.8);
+  const p = beds.player(m.bed);
+  p.volume.value = -60;
+  if (p.state !== "started") p.start();
+  p.volume.rampTo(m.bedDb, 0.8);
   setLoop("engine", true, 0.9);
   applyThrottle(state.throttle);
 }
@@ -84,8 +94,17 @@ export function setModeAudio(mode, prev) {
   state.mode = mode;
   const from = MODES[prev], to = MODES[mode];
   if (from.bed !== to.bed) {
-    beds.player(from.bed).volume.rampTo(-60, 1.1);
-    beds.player(to.bed).volume.rampTo(to.bedDb, 1.1);
+    // Crossfade, then actually STOP the outgoing bed (don't leave it muted-but-
+    // running). The incoming bed is (re)started fresh from -60 and ramped up.
+    const oldP = beds.player(from.bed);
+    oldP.volume.cancelScheduledValues(Tone.now());
+    oldP.volume.rampTo(-60, 1.1);
+    oldP.stop("+1.35");
+    const newP = beds.player(to.bed);
+    newP.volume.cancelScheduledValues(Tone.now());
+    newP.volume.value = -60;
+    if (newP.state === "started") newP.restart(); else newP.start();
+    newP.volume.rampTo(to.bedDb, 1.1);
     activeBed = to.bed;
   } else {
     beds.player(to.bed).volume.rampTo(to.bedDb, 0.6);
@@ -138,6 +157,27 @@ export function playVoice(key, duck = true) {
 }
 
 // ---- signal pad: theremin-style synth ----
+// The FeedbackDelay is only spliced into the chain while the pad is engaged.
+// When bypassed we route the dry path (padFilter -> padGain) so audio still
+// flows, and disconnect the delay so it stops costing audio-thread CPU.
+function insertPadFx() {
+  if (padFxActive) return;
+  padFxActive = true;
+  try {
+    padFilter.disconnect(padGain);
+    padFilter.connect(padDelay);
+    padDelay.connect(padGain);
+  } catch (e) {}
+}
+function bypassPadFx() {
+  if (!padFxActive) return;
+  padFxActive = false;
+  try {
+    padFilter.disconnect(padDelay);
+    padDelay.disconnect(padGain);
+    padFilter.connect(padGain);
+  } catch (e) {}
+}
 function applyPadParams(x, y, w) {
   padFilter.frequency.rampTo(250 + w[2] * 5000, 0.07);   // omega = bright/open
   padFilter.Q.rampTo(0.6 + w[0] * 3.0, 0.1);              // delta = resonant
@@ -147,6 +187,8 @@ function applyPadParams(x, y, w) {
 }
 export function padAttack(x) {
   if (!ready || state.musicOnly || padPlaying) return;
+  if (padBypassTimer) { clearTimeout(padBypassTimer); padBypassTimer = null; }
+  insertPadFx();
   padSynth.triggerAttack(PAD_FREQS[Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length))], "+0.01");
   padPlaying = true;
 }
@@ -154,6 +196,10 @@ export function padRelease() {
   if (!padPlaying) return;
   padSynth.triggerRelease();
   padPlaying = false;
+  // Bypass the FX after the synth release (2.4s) + delay tail so the echo isn't
+  // cut, then disconnect the FeedbackDelay so it stops rendering while idle.
+  if (padBypassTimer) clearTimeout(padBypassTimer);
+  padBypassTimer = setTimeout(() => { bypassPadFx(); padBypassTimer = null; }, 3200);
 }
 export function padSetPos(x, y, w) {
   if (!ready || state.musicOnly) return;
@@ -184,6 +230,10 @@ export function setMusicOnly(on) {
   voiceBus.volume.rampTo(on ? -60 : 3, t);
   padGain.volume.rampTo(on ? -60 : -16, t);
   if (on && padPlaying) { padSynth.triggerRelease(); padPlaying = false; }
+  if (on) {
+    if (padBypassTimer) clearTimeout(padBypassTimer);
+    padBypassTimer = setTimeout(() => { bypassPadFx(); padBypassTimer = null; }, 3200);
+  }
 }
 export function getSignalWaveform() { return null; }
 export function getLevel() {

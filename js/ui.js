@@ -1,10 +1,10 @@
 // STARHOPPER — UI wiring + the two hero interactions:
 //   1) mode transition (the whole deck re-lights)
 //   2) signal triangulation pad (throwable puck, inertia, magnetic node-settle)
-import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js?v=5";
-import * as A from "./audio.js?v=5";
-import * as V from "./visuals.js?v=5";
-import { startEvents, setEventsEnabled } from "./events.js?v=5";
+import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js?v=6";
+import * as A from "./audio.js?v=6";
+import * as V from "./visuals.js?v=6";
+import { startEvents, setEventsEnabled } from "./events.js?v=6";
 
 let mode = "cruise";
 let booted = false;
