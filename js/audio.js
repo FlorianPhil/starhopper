@@ -10,6 +10,8 @@ let padFxActive = false, padBypassTimer = null;
 const PAD_FREQS = [130.8, 146.8, 164.8, 196.0, 220.0, 261.6, 293.7, 329.6, 392.0, 440.0, 523.3];
 const PAD_NOTES = ["C3","D3","E3","G3","A3","C4","D4","E4","G4","A4","C5"];
 let ready = false, activeBed = "cruise";
+let lifecycleBound = false;
+let tornDown = false;
 
 const state = { mode: "cruise", muted: false, throttle: 0.55, engineOn: false, musicOnly: false, voiceUntil: 0 };
 
@@ -18,6 +20,7 @@ export function getState() { return state; }
 
 // ---- build graph + load every buffer ----
 export async function initAudio() {
+  configureAudioSession();
   // iOS fix: Tone's default context uses latencyHint "interactive", which gives
   // iOS Safari/Chrome a tiny render buffer. Under our two canvas RAF loops + the
   // live BitCrusher FX chain that buffer underruns, chopping playback several
@@ -71,9 +74,10 @@ export async function initAudio() {
   for (const [k, [s, e]] of Object.entries(LOOP_TRIM.music)) { const p = beds.player(k); p.loopStart = s; p.loopEnd = e; }
   try { shots.player("sonar").volume.value = -13; } catch (e) {}
   ready = true;
+  bindAudioLifecycle();
 }
 
-export async function unlock() { await Tone.start(); setupAutoResume(); }
+export async function unlock() { await Tone.start(); bindAudioLifecycle(); }
 
 // ---- boot: spin up the ship ----
 export function bootAudio() {
@@ -212,14 +216,89 @@ export function getPadNoteName(x) {
 }
 
 // ---- CarPlay / iOS background audio resume ----
-// When phone goes behind CarPlay UI or another app interrupts (Siri, Maps),
-// the AudioContext gets suspended. Resume on any re-surface event.
-function setupAutoResume() {
-  const ctx = Tone.getContext().rawContext;
-  const tryResume = () => { if (ctx.state !== "running") ctx.resume().catch(() => {}); };
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) tryResume(); });
-  ctx.addEventListener("statechange", () => { if (ctx.state === "suspended") setTimeout(tryResume, 200); });
-  document.addEventListener("pointerdown", tryResume, { passive: true });
+function configureAudioSession() {
+  const session = typeof navigator !== "undefined" ? navigator.audioSession : null;
+  if (!session) return;
+  try {
+    session.type = "playback";
+  } catch (e) {
+    console.warn("audio session setup failed", e);
+  }
+}
+
+function bindAudioLifecycle() {
+  if (lifecycleBound) return;
+  lifecycleBound = true;
+
+  const resumeIfNeeded = () => {
+    if (tornDown || !ready) return;
+    const ctx = Tone.getContext()?.rawContext;
+    if (!ctx || ctx.state === "running" || document.hidden) return;
+    ctx.resume().catch(() => {});
+  };
+
+  const teardown = (event) => {
+    void teardownAudio(event?.type === "pagehide" && event?.persisted === true);
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) resumeIfNeeded();
+  });
+  window.addEventListener("pageshow", resumeIfNeeded);
+  window.addEventListener("focus", resumeIfNeeded);
+  document.addEventListener("pointerdown", resumeIfNeeded, { passive: true, capture: true });
+  document.addEventListener("touchstart", resumeIfNeeded, { passive: true, capture: true });
+  document.addEventListener("keydown", resumeIfNeeded, { passive: true, capture: true });
+  window.addEventListener("pagehide", teardown);
+  window.addEventListener("beforeunload", teardown);
+}
+
+async function teardownAudio(keepContext = false) {
+  if (tornDown && !keepContext) return;
+
+  if (keepContext) {
+    try { await Tone.getContext()?.rawContext?.suspend(); } catch (e) {}
+    return;
+  }
+
+  if (padBypassTimer) {
+    clearTimeout(padBypassTimer);
+    padBypassTimer = null;
+  }
+  padPlaying = false;
+  padFxActive = false;
+
+  try { padSynth?.triggerRelease(); } catch (e) {}
+
+  const stopNames = (collection, names) => {
+    if (!collection) return;
+    for (const name of names) {
+      try { collection.player(name).stop(); } catch (e) {}
+    }
+  };
+  stopNames(beds, Object.keys(AUDIO.music));
+  stopNames(loops, Object.keys(AUDIO.loops));
+  stopNames(shots, Object.keys(AUDIO.shots));
+  stopNames(voices, Object.keys(AUDIO.voice));
+
+  try { padSynth?.disconnect(); } catch (e) {}
+  try { padFilter?.disconnect(); } catch (e) {}
+  try { padDelay?.disconnect(); } catch (e) {}
+  try { padGain?.disconnect(); } catch (e) {}
+  try { meter?.dispose?.(); } catch (e) {}
+  try { voiceBus?.dispose?.(); } catch (e) {}
+  try { sfxBus?.dispose?.(); } catch (e) {}
+  try { musicBus?.dispose?.(); } catch (e) {}
+  try { limiter?.dispose?.(); } catch (e) {}
+  try { master?.dispose?.(); } catch (e) {}
+  try { padSynth?.dispose?.(); } catch (e) {}
+  try { padFilter?.dispose?.(); } catch (e) {}
+  try { padDelay?.dispose?.(); } catch (e) {}
+  try { padGain?.dispose?.(); } catch (e) {}
+
+  ready = false;
+  tornDown = true;
+  try { await Tone.getContext()?.rawContext?.close(); } catch (e) {}
 }
 
 export function setMuted(m) { state.muted = m; master.mute = m; }
