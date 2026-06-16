@@ -148,6 +148,16 @@ body[data-booted="true"] #boot{ opacity:0; visibility:hidden; pointer-events:non
   font-size:13px; letter-spacing:.42em; text-transform:uppercase; color:var(--ink-dim);
   padding-left:.42em;
 }
+.boot-meta{
+  min-height:1.2em;
+  margin-top:12px;
+  font-size:10px;
+  letter-spacing:.16em;
+  line-height:1.45;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  overflow-wrap:anywhere;
+}
 .boot-checklist{
   display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:30px 0 6px;
   font-size:10px; letter-spacing:.18em; color:var(--ink-faint);

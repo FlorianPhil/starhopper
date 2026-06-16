@@ -2,6 +2,12 @@
 
 export const SHIP = { name: "STARHOPPER", hull: "SH-7" };
 
+export const APP_META = {
+  version: "v9",
+  updated: "2026-06-16",
+  source: "Codex"
+};
+
 export const MODE_ORDER = ["cruise", "combat", "stealth", "warp"];
 
 export const MODES = {

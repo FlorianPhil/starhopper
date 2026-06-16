@@ -57,7 +57,7 @@ third-party voice service, no API keys.
 
 ## Built with
 
-- [Tone.js](https://tonejs.github.io) — audio graph + live triangulation effects
+- HTML audio - soundtrack, loops, effects, and the CarPlay-safe signal pad
 - [GSAP](https://gsap.com) — motion (boot, mode transitions, meters)
 - HTML Canvas — the canopy starfield/warp and the signal visualizer
 - No frameworks, no build. Libraries are vendored in `js/vendor/` so the deck
@@ -69,7 +69,7 @@ third-party voice service, no API keys.
 index.html            cockpit markup
 css/cockpit.css       material instrument design system, per-mode theming
 js/config.js          modes, audio manifest, events, node mapping
-js/audio.js           Tone.js engine + triangulation DSP chain
+js/audio.js           HTML audio engine + signal pad playback controls
 js/visuals.js         canvas canopy + signal visualizer
 js/ui.js              wiring + the two hero interactions
 js/events.js          random mission events

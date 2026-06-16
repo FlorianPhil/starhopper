@@ -1,323 +1,364 @@
-// STARHOPPER — audio engine (Tone.js).
-// Signal pad: theremin-style synth (pentatonic X-axis, zone-based timbre+echo).
-// System toggles each have a distinct click sound. Scanner starts off.
-import { AUDIO, MODES } from "./config.js?v=7";
+// STARHOPPER audio engine.
+// Uses plain HTMLAudioElement playback so the main deck matches the CarPlay-safe lite2 path.
+import { AUDIO, MODES } from "./config.js?v=9";
 
-let beds, loops, shots, voices;
-let master, limiter, musicBus, sfxBus, voiceBus, meter;
-let padSynth, padFilter, padDelay, padGain, padPlaying = false;
-let padFxActive = false, padBypassTimer = null;
+const LOOP_TRIM = {
+  loops: {
+    engine: [1.0, 9.3],
+    shields: [0.8, 4.6],
+    scanner: [0.55, 1.9]
+  },
+  music: {
+    cruise: [0.1, 89.75],
+    combat: [0.35, 89.75],
+    stealth: [0.35, 89.75],
+    warp: [0.35, 89.75]
+  }
+};
+
 const PAD_FREQS = [130.8, 146.8, 164.8, 196.0, 220.0, 261.6, 293.7, 329.6, 392.0, 440.0, 523.3];
-const PAD_NOTES = ["C3","D3","E3","G3","A3","C4","D4","E4","G4","A4","C5"];
-let ready = false, activeBed = "cruise";
-let lifecycleBound = false;
-let tornDown = false;
+const PAD_NOTES = ["C3", "D3", "E3", "G3", "A3", "C4", "D4", "E4", "G4", "A4", "C5"];
+const SOURCE_GAIN = { sonar: -13 };
 
-const state = { mode: "cruise", muted: false, throttle: 0.55, engineOn: false, musicOnly: false, voiceUntil: 0 };
+let beds = {};
+let loops = {};
+let shots = {};
+let voices = {};
+let padLoop = null;
+let ready = false;
+let activeBed = "cruise";
+let lifecycleBound = false;
+let padPlaying = false;
+let duckTimer = 0;
+
+const state = {
+  mode: "cruise",
+  muted: false,
+  throttle: 0.55,
+  engineOn: false,
+  musicOnly: false,
+  voiceUntil: 0
+};
 
 export function audioReady() { return ready; }
 export function getState() { return state; }
 
-// ---- build graph + load every buffer ----
 export async function initAudio() {
+  if (ready) return;
   configureAudioSession();
-  // iOS fix: Tone's default context uses latencyHint "interactive", which gives
-  // iOS Safari/Chrome a tiny render buffer. Under our two canvas RAF loops + the
-  // live BitCrusher FX chain that buffer underruns, chopping playback several
-  // times a second. A "playback" context uses a large buffer (the standard choice
-  // for music/ambient web audio) so loops stay continuous. Must be set BEFORE any
-  // Tone node is created, since latencyHint is fixed at context construction.
-  try {
-    Tone.setContext(new Tone.Context({ latencyHint: "playback", lookAhead: 0.1, updateInterval: 0.05 }));
-  } catch (e) { console.warn("audio context setup failed, using default", e); }
-
-  master = new Tone.Volume(0);
-  limiter = new Tone.Limiter(-1);
-  master.connect(limiter); limiter.toDestination();
-  meter = new Tone.Meter({ smoothing: 0.82 }); master.connect(meter);
-
-  musicBus = new Tone.Volume(0).connect(master);
-  sfxBus   = new Tone.Volume(-1).connect(master);
-  voiceBus = new Tone.Volume(3).connect(master);
-
-  // --- signal pad: theremin-style synth (X=pitch, zones=timbre/echo) ---
-  padFilter = new Tone.Filter({ type: "bandpass", frequency: 1200, Q: 1.2 });
-  padDelay  = new Tone.FeedbackDelay({ delayTime: 0.28, feedback: 0.35, wet: 0.3 });
-  padGain   = new Tone.Volume(-16).connect(master);
-  padSynth  = new Tone.Synth({
-    oscillator: { type: "triangle" },
-    envelope: { attack: 0.2, decay: 0.12, sustain: 0.78, release: 2.4 }
-  });
-  // FX-bypassed by default: padSynth -> padFilter -> padGain (dry). The
-  // FeedbackDelay is left disconnected so it doesn't render continuously on the
-  // audio thread while the pad is idle; it's inserted only while the pad plays.
-  padSynth.connect(padFilter);
-  padFilter.connect(padGain);
-
-  beds   = new Tone.Players({ urls: AUDIO.music, baseUrl: AUDIO.base, fadeIn: 0.4, fadeOut: 0.6 }).connect(musicBus);
-  loops  = new Tone.Players({ urls: AUDIO.loops, baseUrl: AUDIO.base, fadeIn: 0.25, fadeOut: 0.4 }).connect(sfxBus);
-  shots  = new Tone.Players({ urls: AUDIO.shots, baseUrl: AUDIO.base }).connect(sfxBus);
-  voices = new Tone.Players({ urls: AUDIO.voice, baseUrl: AUDIO.base }).connect(voiceBus);
-
-  await Tone.loaded();
-  // Tone.Players does NOT propagate a `loop` option to its players, so set it here:
-  for (const k of Object.keys(AUDIO.music)) beds.player(k).loop = true;
-  for (const k of Object.keys(AUDIO.loops)) loops.player(k).loop = true;
-  // Loop only each file's sustained region. The raw files carry silent tails and
-  // fade boundaries (computer_loop is 1.5s of sound in a 3.7s file), which loop
-  // as a rhythmic dropout. Regions picked from RMS envelopes, level-matched ends.
-  const LOOP_TRIM = {
-    loops: { engine: [1.0, 9.3], shields: [0.8, 4.6], scanner: [0.55, 1.9] },
-    music: { cruise: [0.1, 89.75], combat: [0.35, 89.75], stealth: [0.35, 89.75], warp: [0.35, 89.75] }
-  };
-  for (const [k, [s, e]] of Object.entries(LOOP_TRIM.loops)) { const p = loops.player(k); p.loopStart = s; p.loopEnd = e; }
-  for (const [k, [s, e]] of Object.entries(LOOP_TRIM.music)) { const p = beds.player(k); p.loopStart = s; p.loopEnd = e; }
-  try { shots.player("sonar").volume.value = -13; } catch (e) {}
+  beds = makeMap(AUDIO.music, "music", LOOP_TRIM.music);
+  loops = makeMap(AUDIO.loops, "sfx", LOOP_TRIM.loops);
+  shots = makeMap(AUDIO.shots, "sfx");
+  voices = makeMap(AUDIO.voice, "voice");
+  padLoop = makeAudio(AUDIO.signal, { bus: "sfx", loop: true, trim: [0, 10], db: -60 });
   ready = true;
+  bindAudioLifecycle();
+  updateVolumes();
+}
+
+export async function unlock() {
+  if (!ready) await initAudio();
   bindAudioLifecycle();
 }
 
-export async function unlock() { await Tone.start(); bindAudioLifecycle(); }
-
-// ---- boot: spin up the ship ----
 export function bootAudio() {
+  if (!ready) return;
   const m = MODES[state.mode];
-  // Start ONLY the active mode's bed. The other three beds stay stopped so they
-  // cost nothing on the audio thread (a muted-but-running player still renders).
   activeBed = m.bed;
-  const p = beds.player(m.bed);
-  p.volume.value = -60;
-  if (p.state !== "started") p.start();
-  p.volume.rampTo(m.bedDb, 0.8);
+  const bed = beds[m.bed];
+  if (bed) {
+    setDb(bed, -60);
+    playLoop(bed);
+    fadeDb(bed, m.bedDb, 0.8);
+  }
   setLoop("engine", true, 0.9);
   applyThrottle(state.throttle);
 }
 
-// ---- mode change: crossfade bed + retune engine/music ----
 export function setModeAudio(mode, prev) {
+  if (!ready) return;
   state.mode = mode;
-  const from = MODES[prev], to = MODES[mode];
+  const from = MODES[prev];
+  const to = MODES[mode];
   if (from.bed !== to.bed) {
-    // Crossfade, then actually STOP the outgoing bed (don't leave it muted-but-
-    // running). The incoming bed is (re)started fresh from -60 and ramped up.
-    const oldP = beds.player(from.bed);
-    oldP.volume.cancelScheduledValues(Tone.now());
-    oldP.volume.rampTo(-60, 1.1);
-    oldP.stop("+1.35");
-    const newP = beds.player(to.bed);
-    newP.volume.cancelScheduledValues(Tone.now());
-    newP.volume.value = -60;
-    if (newP.state === "started") newP.restart(); else newP.start();
-    newP.volume.rampTo(to.bedDb, 1.1);
-    activeBed = to.bed;
-  } else {
-    beds.player(to.bed).volume.rampTo(to.bedDb, 0.6);
+    const oldBed = beds[from.bed];
+    if (oldBed) fadeDb(oldBed, -60, 1.1, () => stopMedia(oldBed));
+    const newBed = beds[to.bed];
+    if (newBed) {
+      setDb(newBed, -60);
+      playLoop(newBed);
+      fadeDb(newBed, to.bedDb, 1.1);
+      activeBed = to.bed;
+    }
+  } else if (beds[to.bed]) {
+    fadeDb(beds[to.bed], to.bedDb, 0.6);
   }
   applyThrottle(state.throttle);
 }
 
-// ---- system loops (engine / shields / scanner-computer) — all distinct sounds ----
 export function setLoop(name, on, fade = 0.4) {
-  if (name === "engine") {
-    state.engineOn = on;
-    if (on) { if (loops.player("engine").state !== "started") loops.player("engine").start(); applyThrottle(state.throttle); }
-    else loops.player("engine").volume.rampTo(-60, fade);
+  if (!ready) return;
+  if (name === "engine") state.engineOn = on;
+  const el = loops[name];
+  if (!el) return;
+
+  if (on) {
+    playLoop(el);
+    if (name === "engine") {
+      applyThrottle(state.throttle);
+    } else {
+      fadeDb(el, name === "shields" ? -13 : -15, fade);
+    }
     return;
   }
-  const p = loops.player(name);
-  if (on) { if (p.state !== "started") p.start(); p.volume.rampTo(name === "shields" ? -13 : -15, fade); }
-  else p.volume.rampTo(-60, fade);
+
+  fadeDb(el, -60, fade, () => stopMedia(el));
 }
 
-// ---- throttle (velocity): engine intensity + faster/louder music ----
 export function applyThrottle(v) {
+  if (!ready) {
+    state.throttle = v;
+    return;
+  }
   state.throttle = v;
   const m = MODES[state.mode];
-  try {
-    const eng = loops.player("engine");
-    eng.playbackRate = m.engineRate * (0.55 + v * 1.15);
-    if (state.engineOn) eng.volume.rampTo(-16 + v * 14, 0.12);
-    beds.player(activeBed).playbackRate = 0.9 + v * 0.3;     // music speeds up
-    musicBus.volume.rampTo(-3.5 + v * 4, 0.2);               // and lifts
-  } catch (e) {}
+  const engine = loops.engine;
+  if (engine) {
+    engine.playbackRate = m.engineRate * (0.55 + v * 1.15);
+    if (state.engineOn) {
+      playLoop(engine);
+      fadeDb(engine, -16 + v * 14, 0.12);
+    }
+  }
+
+  const bed = beds[activeBed];
+  if (bed) bed.playbackRate = 0.9 + v * 0.3;
+  updateVolumes();
 }
 
-// ---- one-shots ----
-export function triggerShot(name) { try { shots.player(name).start(); } catch (e) {} }
+export function triggerShot(name) {
+  if (!ready || state.musicOnly || state.muted) return;
+  const source = shots[name];
+  if (!source) return;
+  const el = source.cloneNode(true);
+  decorateMedia(el, "sfx", SOURCE_GAIN[name] ?? 0);
+  seek(el, 0);
+  updateElementVolume(el);
+  void el.play().catch(() => {});
+}
 
-// ---- voice (ducks the music bed) ----
 export function playVoice(key, duck = true) {
-  let p = null;
-  try { p = voices.player(key); } catch (e) {}   // Players.player() throws on unknown keys
-  if (!p) return 0;
-  const dur = (p.buffer && p.buffer.duration) || 1.4;
-  try { p.start(); } catch (e) { return 0; }
+  if (!ready || state.musicOnly || state.muted) return 0;
+  const el = voices[key];
+  if (!el) return 0;
+  seek(el, 0);
+  setDb(el, 0);
+  void el.play().catch(() => {});
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : 1.4;
   if (duck) {
-    musicBus.volume.rampTo(-12, 0.18);
-    musicBus.volume.rampTo(-3.5 + state.throttle * 4, 0.7, Tone.now() + dur + 0.15);
     state.voiceUntil = performance.now() + dur * 1000;
+    updateVolumes(-12);
+    clearTimeout(duckTimer);
+    duckTimer = setTimeout(() => {
+      state.voiceUntil = 0;
+      updateVolumes();
+    }, (dur + 0.15) * 1000);
   }
   return dur;
 }
 
-// ---- signal pad: theremin-style synth ----
-// The FeedbackDelay is only spliced into the chain while the pad is engaged.
-// When bypassed we route the dry path (padFilter -> padGain) so audio still
-// flows, and disconnect the delay so it stops costing audio-thread CPU.
-function insertPadFx() {
-  if (padFxActive) return;
-  padFxActive = true;
-  try {
-    padFilter.disconnect(padGain);
-    padFilter.connect(padDelay);
-    padDelay.connect(padGain);
-  } catch (e) {}
-}
-function bypassPadFx() {
-  if (!padFxActive) return;
-  padFxActive = false;
-  try {
-    padFilter.disconnect(padDelay);
-    padDelay.disconnect(padGain);
-    padFilter.connect(padGain);
-  } catch (e) {}
-}
-function applyPadParams(x, y, w) {
-  padFilter.frequency.rampTo(250 + w[2] * 5000, 0.07);   // omega = bright/open
-  padFilter.Q.rampTo(0.6 + w[0] * 3.0, 0.1);              // delta = resonant
-  padDelay.feedback.rampTo(0.08 + w[0] * 0.62, 0.1);      // delta = echo
-  padDelay.wet.rampTo(0.06 + w[0] * 0.60, 0.1);
-  padGain.volume.rampTo(-16 - w[1] * 3 + w[2] * 7, 0.08); // sigma=dark, omega=bright
-}
 export function padAttack(x) {
-  if (!ready || state.musicOnly || padPlaying) return;
-  if (padBypassTimer) { clearTimeout(padBypassTimer); padBypassTimer = null; }
-  insertPadFx();
-  padSynth.triggerAttack(PAD_FREQS[Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length))], "+0.01");
+  if (!ready || state.musicOnly || padPlaying || !padLoop) return;
   padPlaying = true;
+  padLoop.playbackRate = rateFromPadX(x);
+  playLoop(padLoop);
+  fadeDb(padLoop, -18, 0.12);
 }
+
 export function padRelease() {
-  if (!padPlaying) return;
-  padSynth.triggerRelease();
+  if (!padPlaying || !padLoop) return;
   padPlaying = false;
-  // Bypass the FX after the synth release (2.4s) + delay tail so the echo isn't
-  // cut, then disconnect the FeedbackDelay so it stops rendering while idle.
-  if (padBypassTimer) clearTimeout(padBypassTimer);
-  padBypassTimer = setTimeout(() => { bypassPadFx(); padBypassTimer = null; }, 3200);
+  fadeDb(padLoop, -60, 0.45, () => stopMedia(padLoop));
 }
+
 export function padSetPos(x, y, w) {
-  if (!ready || state.musicOnly) return;
-  const idx = Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length));
-  if (padPlaying) padSynth.frequency.rampTo(PAD_FREQS[idx], 0.08);
-  applyPadParams(x, y, w);
+  if (!ready || state.musicOnly || !padLoop) return;
+  padLoop.playbackRate = rateFromPadX(x);
+  if (padPlaying) {
+    const loudness = -24 + w[2] * 8 - w[1] * 4;
+    fadeDb(padLoop, loudness, 0.08);
+  }
 }
+
 export function getPadNoteName(x) {
   return PAD_NOTES[Math.min(PAD_NOTES.length - 1, Math.floor(x * PAD_NOTES.length))];
 }
 
-// ---- CarPlay / iOS background audio resume ----
+export function setMuted(m) {
+  state.muted = m;
+  updateVolumes();
+}
+
+export function setMusicOnly(on) {
+  state.musicOnly = on;
+  if (on) padRelease();
+  updateVolumes();
+}
+
+export function getSignalWaveform() { return null; }
+
+export function getLevel() {
+  if (state.muted) return 0;
+  let level = 0.18;
+  if (state.engineOn && !state.musicOnly) level += state.throttle * 0.32;
+  if (padPlaying && !state.musicOnly) level += 0.18;
+  if (performance.now() < state.voiceUntil) level += 0.2;
+  return clamp(level, 0, 1);
+}
+
+function makeMap(urls, bus, trims = {}) {
+  return Object.fromEntries(Object.entries(urls).map(([name, path]) => [
+    name,
+    makeAudio(path, {
+      bus,
+      loop: Boolean(trims[name]),
+      trim: trims[name] || null,
+      db: -60
+    })
+  ]));
+}
+
+function makeAudio(path, { bus, loop = false, trim = null, db = -60 }) {
+  const el = new Audio(AUDIO.base + path);
+  el.preload = "auto";
+  el.loop = false;
+  decorateMedia(el, bus, db);
+  if (loop) installTrimmedLoop(el, trim);
+  return el;
+}
+
+function decorateMedia(el, bus, db) {
+  el.playsInline = true;
+  el._bus = bus;
+  el._db = db;
+  el._fade = 0;
+}
+
+function installTrimmedLoop(el, trim) {
+  const start = trim?.[0] ?? 0;
+  const end = trim?.[1] ?? null;
+  el._trim = { start, end };
+  el.addEventListener("loadedmetadata", () => {
+    if (start > 0 && el.currentTime < start) seek(el, start);
+  });
+  el.addEventListener("timeupdate", () => {
+    if (!end || el.paused) return;
+    if (el.currentTime >= end - 0.05) {
+      seek(el, start);
+      void el.play().catch(() => {});
+    }
+  });
+  el.addEventListener("ended", () => {
+    seek(el, start);
+    void el.play().catch(() => {});
+  });
+}
+
+function playLoop(el) {
+  const trim = el._trim;
+  if (trim && (el.currentTime < trim.start || (trim.end && el.currentTime >= trim.end))) {
+    seek(el, trim.start);
+  }
+  void el.play().catch(() => {});
+}
+
+function stopMedia(el) {
+  el.pause();
+  if (el._trim) seek(el, el._trim.start);
+  else seek(el, 0);
+}
+
+function setDb(el, db) {
+  el._db = db;
+  updateElementVolume(el);
+}
+
+function fadeDb(el, targetDb, seconds, done) {
+  cancelAnimationFrame(el._fade);
+  const startDb = Number.isFinite(el._db) ? el._db : -60;
+  const started = performance.now();
+  const duration = Math.max(0.001, seconds) * 1000;
+  const tick = (now) => {
+    const p = clamp((now - started) / duration, 0, 1);
+    el._db = startDb + (targetDb - startDb) * p;
+    updateElementVolume(el);
+    if (p < 1) {
+      el._fade = requestAnimationFrame(tick);
+      return;
+    }
+    el._fade = 0;
+    if (done) done();
+  };
+  el._fade = requestAnimationFrame(tick);
+}
+
+function updateVolumes(duckDb = null) {
+  Object.values(beds).forEach((el) => updateElementVolume(el, duckDb));
+  Object.values(loops).forEach(updateElementVolume);
+  Object.values(shots).forEach(updateElementVolume);
+  Object.values(voices).forEach(updateElementVolume);
+  if (padLoop) updateElementVolume(padLoop);
+}
+
+function updateElementVolume(el, duckDb = null) {
+  const db = Number.isFinite(el._db) ? el._db : -60;
+  el.muted = state.muted || (state.musicOnly && el._bus !== "music");
+  el.volume = clamp(dbToGain(db + busDb(el._bus, duckDb)), 0, 1);
+}
+
+function busDb(bus, duckDb = null) {
+  if (bus === "music") return duckDb ?? (-3.5 + state.throttle * 4);
+  if (bus === "voice") return 3;
+  return -1;
+}
+
+function rateFromPadX(x) {
+  const idx = Math.min(PAD_FREQS.length - 1, Math.floor(x * PAD_FREQS.length));
+  return clamp(PAD_FREQS[idx] / 261.6, 0.5, 2);
+}
+
+function seek(el, time) {
+  try { el.currentTime = time; } catch (_) {}
+}
+
+function dbToGain(db) {
+  if (db <= -60) return 0;
+  return Math.pow(10, db / 20);
+}
+
+function clamp(v, a, b) {
+  return Math.min(b, Math.max(a, v));
+}
+
 function configureAudioSession() {
   const session = typeof navigator !== "undefined" ? navigator.audioSession : null;
   if (!session) return;
-  try {
-    session.type = "playback";
-  } catch (e) {
-    console.warn("audio session setup failed", e);
-  }
+  try { session.type = "playback"; } catch (_) {}
 }
 
 function bindAudioLifecycle() {
   if (lifecycleBound) return;
   lifecycleBound = true;
-
-  const resumeIfNeeded = () => {
-    if (tornDown || !ready) return;
-    const ctx = Tone.getContext()?.rawContext;
-    if (!ctx || ctx.state === "running" || document.hidden) return;
-    ctx.resume().catch(() => {});
-  };
-
-  const teardown = (event) => {
-    void teardownAudio(event?.type === "pagehide" && event?.persisted === true);
-  };
-
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) resumeIfNeeded();
-  });
-  window.addEventListener("pageshow", resumeIfNeeded);
-  window.addEventListener("focus", resumeIfNeeded);
-  document.addEventListener("pointerdown", resumeIfNeeded, { passive: true, capture: true });
-  document.addEventListener("touchstart", resumeIfNeeded, { passive: true, capture: true });
-  document.addEventListener("keydown", resumeIfNeeded, { passive: true, capture: true });
-  window.addEventListener("pagehide", teardown);
-  window.addEventListener("beforeunload", teardown);
+  window.addEventListener("pagehide", stopAllMedia);
+  window.addEventListener("beforeunload", stopAllMedia);
 }
 
-async function teardownAudio(keepContext = false) {
-  if (tornDown && !keepContext) return;
-
-  if (keepContext) {
-    try { await Tone.getContext()?.rawContext?.suspend(); } catch (e) {}
-    return;
-  }
-
-  if (padBypassTimer) {
-    clearTimeout(padBypassTimer);
-    padBypassTimer = null;
-  }
+function stopAllMedia() {
+  clearTimeout(duckTimer);
   padPlaying = false;
-  padFxActive = false;
-
-  try { padSynth?.triggerRelease(); } catch (e) {}
-
-  const stopNames = (collection, names) => {
-    if (!collection) return;
-    for (const name of names) {
-      try { collection.player(name).stop(); } catch (e) {}
-    }
-  };
-  stopNames(beds, Object.keys(AUDIO.music));
-  stopNames(loops, Object.keys(AUDIO.loops));
-  stopNames(shots, Object.keys(AUDIO.shots));
-  stopNames(voices, Object.keys(AUDIO.voice));
-
-  try { padSynth?.disconnect(); } catch (e) {}
-  try { padFilter?.disconnect(); } catch (e) {}
-  try { padDelay?.disconnect(); } catch (e) {}
-  try { padGain?.disconnect(); } catch (e) {}
-  try { meter?.dispose?.(); } catch (e) {}
-  try { voiceBus?.dispose?.(); } catch (e) {}
-  try { sfxBus?.dispose?.(); } catch (e) {}
-  try { musicBus?.dispose?.(); } catch (e) {}
-  try { limiter?.dispose?.(); } catch (e) {}
-  try { master?.dispose?.(); } catch (e) {}
-  try { padSynth?.dispose?.(); } catch (e) {}
-  try { padFilter?.dispose?.(); } catch (e) {}
-  try { padDelay?.dispose?.(); } catch (e) {}
-  try { padGain?.dispose?.(); } catch (e) {}
-
-  ready = false;
-  tornDown = true;
-  try { await Tone.getContext()?.rawContext?.close(); } catch (e) {}
-}
-
-export function setMuted(m) { state.muted = m; master.mute = m; }
-export function setMusicOnly(on) {
-  state.musicOnly = on;
-  const t = 0.3;
-  sfxBus.volume.rampTo(on ? -60 : -1, t);
-  voiceBus.volume.rampTo(on ? -60 : 3, t);
-  padGain.volume.rampTo(on ? -60 : -16, t);
-  if (on && padPlaying) { padSynth.triggerRelease(); padPlaying = false; }
-  if (on) {
-    if (padBypassTimer) clearTimeout(padBypassTimer);
-    padBypassTimer = setTimeout(() => { bypassPadFx(); padBypassTimer = null; }, 3200);
+  for (const el of [...Object.values(beds), ...Object.values(loops), ...Object.values(shots), ...Object.values(voices)]) {
+    stopMedia(el);
   }
-}
-export function getSignalWaveform() { return null; }
-export function getLevel() {
-  if (!meter) return 0;
-  const db = meter.getValue();
-  const v = Array.isArray(db) ? Math.max(db[0], db[1]) : db;
-  return Math.max(0, Math.min(1, (v + 48) / 48));
+  if (padLoop) stopMedia(padLoop);
 }

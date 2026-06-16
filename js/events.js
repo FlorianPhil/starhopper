@@ -1,8 +1,8 @@
 // STARHOPPER — random mission events with robot-voice announcements.
 // Family-friendly, exciting, and a little silly. Can be toggled off.
-import { EVENTS, EVENT_MIN_MS, EVENT_MAX_MS } from "./config.js?v=7";
-import * as A from "./audio.js?v=7";
-import * as V from "./visuals.js?v=7";
+import { EVENTS, EVENT_MIN_MS, EVENT_MAX_MS } from "./config.js?v=9";
+import * as A from "./audio.js?v=9";
+import * as V from "./visuals.js?v=9";
 
 let timer = 0, alTimer = 0, lastId = "", started = false, enabled = false;
 const $ = (s) => document.querySelector(s);

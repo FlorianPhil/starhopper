@@ -1,10 +1,10 @@
 // STARHOPPER — UI wiring + the two hero interactions:
 //   1) mode transition (the whole deck re-lights)
 //   2) signal triangulation pad (throwable puck, inertia, magnetic node-settle)
-import { SHIP, MODES, MODE_ORDER, NODES } from "./config.js?v=7";
-import * as A from "./audio.js?v=7";
-import * as V from "./visuals.js?v=7";
-import { startEvents, setEventsEnabled } from "./events.js?v=7";
+import { SHIP, APP_META, MODES, MODE_ORDER, NODES } from "./config.js?v=9";
+import * as A from "./audio.js?v=9";
+import * as V from "./visuals.js?v=9";
+import { startEvents, setEventsEnabled } from "./events.js?v=9";
 
 let mode = "cruise";
 let booted = false;
@@ -14,8 +14,8 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export function initUI() {
-  const loadPromise = A.initAudio().catch(e => console.warn("audio load failed", e));
-  wireBoot(loadPromise);
+  renderAppMeta();
+  wireBoot();
   wireModes();
   wireSwitches();
   wireTriggers();
@@ -26,14 +26,24 @@ export function initUI() {
   window.addEventListener("resize", () => placeIndicator(true), { passive: true });
 }
 
+function renderAppMeta() {
+  const meta = $("#boot-meta");
+  if (!meta) return;
+  meta.textContent = `${APP_META.version} / updated ${APP_META.updated} / ${APP_META.source}`;
+}
+
 /* ----------------------------- BOOT ----------------------------- */
-function wireBoot(loadPromise) {
+function wireBoot() {
   const engage = $("#engage");
   engage.addEventListener("click", async () => {
     if (booted) return;
     engage.querySelector(".engage-label").textContent = "...";
-    try { await A.unlock(); } catch (e) {}
-    await loadPromise;
+    try {
+      await A.initAudio();
+      await A.unlock();
+    } catch (e) {
+      console.warn("audio load failed", e);
+    }
     await runBootSequence();
   }, { once: false });
 }
@@ -262,14 +272,16 @@ function wireChrome() {
     A.setMuted(!on);
   });
   const credits = $("#credits");
-  $("#btn-credits").addEventListener("click", () => credits.dataset.show = "true");
-  $("#credits-close").addEventListener("click", () => credits.dataset.show = "false");
-  credits.addEventListener("click", (e) => { if (e.target === credits) credits.dataset.show = "false"; });
+  const creditsTrigger = $("#btn-credits");
+  creditsTrigger.addEventListener("click", () => setPanelOpen(credits, true));
+  $("#credits-close").addEventListener("click", () => setPanelOpen(credits, false, creditsTrigger));
+  credits.addEventListener("click", (e) => { if (e.target === credits) setPanelOpen(credits, false, creditsTrigger); });
 
   const settings = $("#settings");
-  $("#btn-settings").addEventListener("click", () => settings.dataset.show = "true");
-  $("#settings-close").addEventListener("click", () => settings.dataset.show = "false");
-  settings.addEventListener("click", (e) => { if (e.target === settings) settings.dataset.show = "false"; });
+  const settingsTrigger = $("#btn-settings");
+  settingsTrigger.addEventListener("click", () => setPanelOpen(settings, true));
+  $("#settings-close").addEventListener("click", () => setPanelOpen(settings, false, settingsTrigger));
+  settings.addEventListener("click", (e) => { if (e.target === settings) setPanelOpen(settings, false, settingsTrigger); });
 
   const swEvents = $("#sw-events");
   swEvents.addEventListener("click", () => {
@@ -291,6 +303,15 @@ function wireChrome() {
     document.body.dataset.theme = on ? "bright" : "";
     A.triggerShot("dock");
   });
+}
+
+function setPanelOpen(panel, open, returnFocus) {
+  panel.dataset.show = String(open);
+  panel.setAttribute("aria-hidden", String(!open));
+  if (!open && panel.contains(document.activeElement)) {
+    document.activeElement.blur();
+    returnFocus?.focus?.();
+  }
 }
 
 /* ----------------------------- METERS ----------------------------- */

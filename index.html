@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@300;400;500;600&family=Saira+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/cockpit.css" />
+<link rel="stylesheet" href="css/cockpit.css?v=9" />
 </head>
 <body data-mode="cruise" data-booted="false" data-engine="off" data-shields="off" data-scanner="off">
 
@@ -26,6 +26,7 @@
     <div class="boot-stamp"><span>HULL</span> SH-7 <span class="dot">/</span> <span>CLASS</span> FAMILY EXPLORER</div>
     <h1 class="boot-brand">STAR<em>HOPPER</em></h1>
     <p class="boot-tagline">Family Flight Deck</p>
+    <p class="boot-meta" id="boot-meta" aria-label="Version information"></p>
     <div class="boot-checklist" id="boot-check" aria-hidden="true">
       <span data-k="reactor">REACTOR</span>
       <span data-k="nav">NAV ARRAY</span>
@@ -157,7 +158,7 @@
     <h3>Music &amp; sound</h3>
     <p>Music beds and sound effects from <a href="https://mixkit.co" target="_blank" rel="noopener">Mixkit</a>, used under the Mixkit Free License (free for personal &amp; commercial use, no attribution required). Robot voice synthesized locally with the macOS speech engine.</p>
     <h3>Built with</h3>
-    <p><a href="https://tonejs.github.io" target="_blank" rel="noopener">Tone.js</a> for the audio engine and live effects, <a href="https://gsap.com" target="_blank" rel="noopener">GSAP</a> for motion, HTML canvas for the scope. No frameworks.</p>
+    <p><a href="https://gsap.com" target="_blank" rel="noopener">GSAP</a> for motion, HTML audio for the soundtrack and effects, HTML canvas for the scope. No frameworks.</p>
     <p class="credits-foot">Fly safe. Look after your crew.</p>
   </div>
 </aside>
@@ -188,7 +189,6 @@
 
 <!-- libraries (vendored: works offline in the car) -->
 <script src="js/vendor/gsap.min.js"></script>
-<script src="js/vendor/Tone.js"></script>
-<script type="module" src="js/main.js?v=7"></script>
+<script type="module" src="js/main.js?v=9"></script>
 </body>
 </html>
