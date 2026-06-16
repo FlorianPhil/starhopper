@@ -1,7 +1,7 @@
 // STARHOPPER — audio engine (Tone.js).
 // Signal pad: theremin-style synth (pentatonic X-axis, zone-based timbre+echo).
 // System toggles each have a distinct click sound. Scanner starts off.
-import { AUDIO, MODES } from "./config.js?v=6";
+import { AUDIO, MODES } from "./config.js?v=7";
 
 let beds, loops, shots, voices;
 let master, limiter, musicBus, sfxBus, voiceBus, meter;
