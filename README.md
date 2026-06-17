@@ -1,80 +1,53 @@
-# STARHOPPER · Flight Deck
+# STARHOPPER Audio Deck
 
-A mobile-first starship cockpit you can actually fly. Built for a dad and his
-boys to play on car rides: tap instruments, switch flight modes, tune the signal
-array, and let the ship's computer call out mission events. It is a *feeling*,
-not a soundboard.
+A lightweight music-first starship controller for car rides. The default bed is
+Combat, because that is the strongest track.
 
-> Best on a phone, sound on. Tap **ENGAGE** to power up the deck.
+The live direction is actual audio first: no Tone, no WebAudio, no canvas, no
+GSAP, no module graph, and no synthetic generated beeps. Speed and loudness are
+pre-rendered into MP3 files derived from the existing source music/SFX, then the
+browser plays them with normal HTML audio.
 
 ## Run it locally
-
-It is a plain static site, no build step.
 
 ```bash
 cd starhopper
 python3 -m http.server 8810
-# open http://localhost:8810 on a phone or a mobile-emulated browser
 ```
 
-## What's on the deck
+Open `http://localhost:8810`.
 
-- **Four flight modes** — Cruise, Combat, Stealth, Warp. Each re-lights the whole
-  cockpit (color, instruments, starfield) and crossfades to its own cinematic
-  music bed.
-- **System switches** — Engine, Shields, Scanner: mechanical toggles driving real
-  looping audio.
-- **Manual controls** — Thrust, Pulse, Missile, Dock one-shots with tactile feedback.
-- **Throttle** — a fluid fader; the faster you go, the **louder and more intense** the
-  engine, plus a quicker starfield.
-- **Signal Triangulation Array** — the hero. Throw the puck between three antenna
-  nodes; its position tunes a live DSP chain on a real scanner signal:
-  filter / feedback-delay / distortion / bitcrush / stereo pan. It glides with
-  inertia and settles magnetically onto nodes. (Pure sound modifier, no chatter.)
-- **Mission events** — random, playful hails ("Our astro-droid is napping in the
-  engine room", "That asteroid is made of cookies") with a consistent robot-voice
-  announcer, matching sound, and a canopy reaction.
-- **Settings** (gear, top-right) — toggle **Random Events** on/off, and **Music Only**
-  (keep the cinematic soundtrack, mute engine / effects / announcements).
+## Current deck
+
+- Four real music beds: Combat, Cruise, Stealth, Warp.
+- Combat is the default loaded track.
+- Three energy levels per bed:
+  - `glide`: original tempo and level.
+  - `boost`: pre-rendered faster and louder.
+  - `overdrive`: pre-rendered max drive.
+- Operation buttons use processed versions of the existing source SFX.
+- Hold Signal loops a processed version of the existing radio loop.
+
+## Active implementation
+
+```text
+index.html            main app markup
+css/cockpit.css       responsive audio deck UI
+js/main.js            plain JavaScript HTML-audio controller
+audio/mix/            pre-rendered music variants
+audio/ops/            processed operation sounds
+audio/music/          source music beds
+audio/sfx/            source sound effects
+audio/voice/          robot voice files
+img/icon.svg          ship mark
+manifest.webmanifest  install metadata
+```
 
 ## Audio credits
 
-All music and sound effects are from **[Mixkit](https://mixkit.co)**, used under
-the [Mixkit Free License](https://mixkit.co/license/) (free for personal and
-commercial use, **no attribution required** — credited here anyway):
-
-| Slot | Mixkit track / sfx |
-|---|---|
-| Cruise bed | *Vastness* (ambient) |
-| Combat bed | *Games Music* (action) |
-| Stealth bed | *Xanthos* (drone) |
-| Warp bed | *Baten Kaitos* (futuristic) |
-| Engine / Shield / Scanner loops, Thrust / Pulse / Dock / Impact | Mixkit sci-fi & technology SFX |
-
-The **robot voice** lines were synthesized locally with the macOS speech engine
-(`say`, voice "Daniel") and given a light comms treatment with ffmpeg. No
-third-party voice service, no API keys.
-
-## Built with
-
-- HTML audio - soundtrack, loops, effects, and the CarPlay-safe signal pad
-- [GSAP](https://gsap.com) — motion (boot, mode transitions, meters)
-- HTML Canvas — the canopy starfield/warp and the signal visualizer
-- No frameworks, no build. Libraries are vendored in `js/vendor/` so the deck
-  loads and runs without a network connection once opened (handy in a car).
-
-## Layout
-
-```
-index.html            cockpit markup
-css/cockpit.css       material instrument design system, per-mode theming
-js/config.js          modes, audio manifest, events, node mapping
-js/audio.js           HTML audio engine + signal pad playback controls
-js/visuals.js         canvas canopy + signal visualizer
-js/ui.js              wiring + the two hero interactions
-js/events.js          random mission events
-js/main.js            entry point
-audio/                music beds, sfx loops + one-shots, robot voice
-```
+Music and original sound effects are from Mixkit and are used under the Mixkit
+Free License. Robot voice lines were synthesized locally with the macOS speech
+engine. The `audio/mix/` and `audio/ops/` files are local ffmpeg renders derived
+from those source files.
 
 Fly safe. Look after your crew.
