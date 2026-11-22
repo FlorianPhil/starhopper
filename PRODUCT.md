@@ -31,11 +31,12 @@ and kind. Never scary, harsh, violent, or complicated.
 1. Actual audio files beat synthetic generated beeps.
 2. Combat music is the default and should remain easy to start.
 3. Speed/loudness changes are pre-rendered to real MP3 files.
-4. Runtime playback uses normal HTML audio elements only.
+4. One native audio element owns the car output. Ship radio interrupts and returns to the current music position.
 5. No WebAudio, Tone, GSAP, canvas, module graph, or runtime pitch/volume tricks
    in the live main page.
 6. A few big controls beat a complex cockpit.
-7. GitHub Pages static hosting remains the deployment target.
+7. Save every bundled sound before a trip. Support a device-local Emergency song and preserve pauses across app switches.
+8. GitHub Pages static hosting remains the deployment target.
 
 ## Anti-references
 

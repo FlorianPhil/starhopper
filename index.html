@@ -1,122 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#101824" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="STARHOPPER" />
-<meta name="description" content="STARHOPPER Audio Deck, a lightweight music-first starship controller for the road." />
-<title>STARHOPPER Audio Deck</title>
-<link rel="manifest" href="manifest.webmanifest" />
-<link rel="icon" type="image/svg+xml" href="img/icon.svg" />
-<link rel="apple-touch-icon" href="img/icon.svg" />
-<link rel="stylesheet" href="css/cockpit.css?v=12" />
-</head>
-<body>
-<main class="deck" id="deck" data-mode="combat" data-drive="glide" data-playing="false">
-  <header class="topbar">
-    <div>
-      <p class="kicker">SH-7 Audio Deck</p>
-      <h1>STARHOPPER</h1>
-    </div>
-    <p class="version" id="version">v12 / updated 2026-06-17 / Codex Audio</p>
-  </header>
-
-  <section class="now-panel" aria-labelledby="now-title">
-    <div class="mark-wrap"><img src="img/icon.svg" alt="" /></div>
-    <div class="now-copy">
-      <p class="kicker">Now Playing</p>
-      <h2 id="now-title">Combat Music</h2>
-      <p id="status" aria-live="polite">Actual combat bed loaded. Tap play to start.</p>
-      <p class="file-readout" id="file-readout">audio/mix/combat-glide.mp3</p>
-    </div>
-    <button class="play-button" id="play" type="button">
-      <span>Play</span>
-      <small>unlock audio</small>
-    </button>
-  </section>
-
-  <section class="transport-panel" aria-label="Music controls">
-    <div class="meter-row">
-      <div>
-        <p class="kicker">Progress</p>
-        <div class="progress"><i id="progress-bar"></i></div>
-      </div>
-      <button class="small-button" id="restart" type="button">Restart Track</button>
-    </div>
-  </section>
-
-  <section class="mode-panel" aria-label="Music mode">
-    <div class="section-head">
-      <p class="kicker">Music Bed</p>
-      <strong id="mode-label">Combat</strong>
-    </div>
-    <div class="button-grid four">
-      <button type="button" class="mode-button" data-mode="combat" aria-pressed="true">
-        <span>Combat</span>
-        <small>the good one</small>
-      </button>
-      <button type="button" class="mode-button" data-mode="cruise" aria-pressed="false">
-        <span>Cruise</span>
-        <small>calm</small>
-      </button>
-      <button type="button" class="mode-button" data-mode="stealth" aria-pressed="false">
-        <span>Stealth</span>
-        <small>low</small>
-      </button>
-      <button type="button" class="mode-button" data-mode="warp" aria-pressed="false">
-        <span>Warp</span>
-        <small>bright</small>
-      </button>
-    </div>
-  </section>
-
-  <section class="drive-panel" aria-label="Drive energy">
-    <div class="section-head">
-      <p class="kicker">Energy</p>
-      <strong id="drive-label">Glide</strong>
-    </div>
-    <div class="button-grid three">
-      <button type="button" class="drive-button" data-drive="glide" aria-pressed="true">
-        <span>Glide</span>
-        <small>original speed</small>
-      </button>
-      <button type="button" class="drive-button" data-drive="boost" aria-pressed="false">
-        <span>Boost</span>
-        <small>faster + louder</small>
-      </button>
-      <button type="button" class="drive-button" data-drive="overdrive" aria-pressed="false">
-        <span>Overdrive</span>
-        <small>max drive</small>
-      </button>
-    </div>
-  </section>
-
-  <section class="ops-panel" aria-label="Ship operation sounds">
-    <div class="section-head">
-      <p class="kicker">Operations</p>
-      <strong>Systems</strong>
-    </div>
-    <div class="button-grid six">
-      <button type="button" class="op-button" data-op="boost"><span>Thruster</span><small>boost hit</small></button>
-      <button type="button" class="op-button" data-op="shield"><span>Shield</span><small>field charge</small></button>
-      <button type="button" class="op-button" data-op="scan"><span>Scanner</span><small>sci-fi ping</small></button>
-      <button type="button" class="op-button" data-op="alert"><span>Alert</span><small>impact cue</small></button>
-      <button type="button" class="op-button" data-op="confirm"><span>Confirm</span><small>button beep</small></button>
-      <button type="button" class="op-button" data-op="voice"><span>Ship AI</span><small>mission line</small></button>
-    </div>
-  </section>
-
-  <section class="signal-panel" aria-label="Hold signal">
-    <button type="button" class="signal-button" id="signal">
-      <span>Hold Signal</span>
-      <small>hold to transmit</small>
-    </button>
-  </section>
-</main>
-<script src="js/main.js?v=12"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#10171d" />
+    <title>Starhopper · Flight deck</title>
+    <link rel="icon" href="img/icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="css/cockpit.css" />
+    <script defer src="js/main.js"></script>
+    <script defer src="offline.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="wordmark"><img src="img/icon.svg" alt="" />STARHOPPER</span
+        ><span>SH-7 / FLIGHT DECK</span>
+      </header>
+      <section class="display" aria-label="Flight playback">
+        <div class="orbit" aria-hidden="true"></div>
+        <div class="screen">
+          <small id="state" role="status">On standby</small>
+          <h1 id="title">Combat</h1>
+          <p id="caption">Battle stations</p>
+          <button id="transport">
+            <span aria-hidden="true" id="glyph">▶</span>
+            <span id="action">Play Combat</span>
+          </button>
+        </div>
+      </section>
+      <section>
+        <h2>Flight mode</h2>
+        <div class="modes" id="modes">
+          <button data-mode="combat" aria-pressed="true">Combat</button
+          ><button data-mode="cruise" aria-pressed="false">Cruise</button
+          ><button data-mode="stealth" aria-pressed="false">Stealth</button
+          ><button data-mode="warp" aria-pressed="false">Warp</button
+          ><button data-mode="emergency" aria-pressed="false">Emergency</button>
+        </div>
+      </section>
+      <section class="drive">
+        <h2>Engine</h2>
+        <div id="drives">
+          <button data-drive="glide" aria-pressed="true">Glide</button
+          ><button data-drive="boost" aria-pressed="false">Boost</button
+          ><button data-drive="overdrive" aria-pressed="false">
+            Overdrive
+          </button>
+        </div>
+      </section>
+      <section>
+        <h2>Ship radio</h2>
+        <div class="cues" id="cues">
+          <button data-cue="scan">Scan</button
+          ><button data-cue="shield">Shields</button
+          ><button data-cue="boost">Thruster</button
+          ><button data-cue="alert">Alert</button
+          ><button data-cue="signal">Signal</button
+          ><button data-cue="confirm">Confirm</button
+          ><button data-cue="voice">Crew report</button>
+        </div>
+      </section>
+      <details>
+        <summary>Before the ride</summary>
+        <p>
+          Save the deck on this phone while online. The passenger can run the
+          radio while the driver listens.
+        </p>
+        <button id="offline">Save for trip</button>
+        <p id="offline-status" role="status"></p>
+        <label for="theme">Emergency soundtrack</label>
+        <p id="theme-note">
+          Emergency uses the Combat overdrive mix. Choose a song to keep on this
+          device.
+        </p>
+        <input type="file" id="theme" accept="audio/*,.mp3,.m4a" />
+        <p id="theme-status" role="status"></p>
+      </details>
+      <audio id="player" preload="auto" playsinline></audio>
+    </main>
+  </body>
 </html>

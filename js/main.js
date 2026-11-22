@@ -1,280 +1,334 @@
-const APP_META = {
-  version: "v12",
-  updated: "2026-06-17",
-  source: "Codex Audio"
+"use strict";
+
+const modes = {
+  combat: ["Combat", "Battle stations", "#ffbb76"],
+  cruise: ["Cruise", "Into open space", "#80dcdd"],
+  stealth: ["Stealth", "Running silent", "#c4b7f6"],
+  warp: ["Warp", "Beyond light speed", "#d7aafa"],
+  emergency: ["Emergency", "Red alert", "#ffa18e"],
 };
-
-const TRACKS = {
-  combat: { label: "Combat", voice: "voice/v_mode_combat.mp3" },
-  cruise: { label: "Cruise", voice: "voice/v_mode_cruise.mp3" },
-  stealth: { label: "Stealth", voice: "voice/v_mode_stealth.mp3" },
-  warp: { label: "Warp", voice: "voice/v_mode_warp.mp3" }
-};
-
-const DRIVES = {
-  glide: { label: "Glide", detail: "original speed" },
-  boost: { label: "Boost", detail: "pre-rendered faster and louder" },
-  overdrive: { label: "Overdrive", detail: "pre-rendered max drive" }
-};
-
-const OPS = {
-  boost: "ops/boost.mp3",
-  shield: "ops/shield.mp3",
-  scan: "ops/scan.mp3",
-  alert: "ops/alert.mp3",
-  confirm: "ops/confirm.mp3"
-};
-
-const STORIES = [
-  "voice/v_evt_boost.mp3",
-  "voice/v_evt_signal.mp3",
-  "voice/v_evt_comet.mp3",
-  "voice/v_evt_nebula.mp3",
-  "voice/v_evt_wormhole.mp3",
-  "voice/v_evt_cookies.mp3"
-];
-
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => Array.from(document.querySelectorAll(selector));
-
-const deck = $("#deck");
-const version = $("#version");
-const playButton = $("#play");
-const restartButton = $("#restart");
-const statusLine = $("#status");
-const nowTitle = $("#now-title");
-const fileReadout = $("#file-readout");
-const modeLabel = $("#mode-label");
-const driveLabel = $("#drive-label");
-const progressBar = $("#progress-bar");
-const signalButton = $("#signal");
-
-const music = new Audio();
-const effect = new Audio();
-const signal = new Audio("audio/ops/signal.mp3");
-
+const reports = ["comet", "cookies", "wormhole", "nebula", "signal", "boost"];
+const el = (id) => document.getElementById(id);
+const player = el("player");
 let mode = "combat";
 let drive = "glide";
-let started = false;
-let signalOpen = false;
-let storyIndex = 0;
-let progressTimer = 0;
+let cue = null;
+let returnToMusic = false;
+let musicPosition = 0;
+let report = 0;
+let generation = 0;
+let wantsPlay = false;
+let privateTheme = null;
+let sourceEvents;
+let phase = "On standby";
 
-music.loop = true;
-music.preload = "auto";
-music.playsInline = true;
-effect.preload = "auto";
-effect.playsInline = true;
-signal.loop = true;
-signal.preload = "auto";
-signal.playsInline = true;
-
-version.textContent = `${APP_META.version} / updated ${APP_META.updated} / ${APP_META.source}`;
-configureAudioSession();
-bindControls();
-applyTrack({ preservePosition: false, autoplay: false });
-
-function bindControls() {
-  playButton.addEventListener("click", togglePlay);
-  restartButton.addEventListener("click", restartTrack);
-
-  $$(".mode-button").forEach((button) => {
-    button.addEventListener("click", () => selectMode(button.dataset.mode));
-  });
-
-  $$(".drive-button").forEach((button) => {
-    button.addEventListener("click", () => selectDrive(button.dataset.drive));
-  });
-
-  $$(".op-button").forEach((button) => {
-    button.addEventListener("click", () => triggerOp(button.dataset.op));
-  });
-
-  signalButton.addEventListener("pointerdown", openSignal);
-  signalButton.addEventListener("pointerup", closeSignal);
-  signalButton.addEventListener("pointercancel", closeSignal);
-  signalButton.addEventListener("lostpointercapture", closeSignal);
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      music.pause();
-      closeSignal();
-      return;
-    }
-    if (started) playMusic();
-  });
+function musicFile() {
+  if (mode === "emergency")
+    return privateTheme || "audio/mix/combat-overdrive.mp3";
+  return "audio/mix/" + mode + "-" + drive + ".mp3";
 }
 
-async function togglePlay() {
-  if (!started) {
-    started = true;
-    deck.dataset.playing = "true";
-    await playMusic();
-    playClip("voice/v_boot.mp3");
-    return;
+function render() {
+  const [name, caption, accent] = modes[mode];
+  document.documentElement.style.setProperty("--accent", accent);
+  el("title").textContent = name;
+  el("caption").textContent = cue ? "Ship radio · " + cue : caption;
+  el("state").textContent = phase;
+  el("action").textContent = wantsPlay ? "Pause" : "Play " + (cue || name);
+  el("glyph").textContent = wantsPlay ? "Ⅱ" : "▶";
+  document
+    .querySelectorAll("[data-mode]")
+    .forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+  document.querySelectorAll("[data-drive]").forEach((b) => {
+    b.disabled = mode === "emergency";
+    b.setAttribute(
+      "aria-pressed",
+      mode === "emergency"
+        ? !privateTheme && b.dataset.drive === "overdrive"
+        : b.dataset.drive === drive,
+    );
+  });
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.playbackState =
+      wantsPlay && !player.paused ? "playing" : "paused";
+    if (window.MediaMetadata)
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: cue || name,
+        artist: "Starhopper",
+        album: "SH-7 Flight deck",
+      });
   }
-
-  if (music.paused) {
-    deck.dataset.playing = "true";
-    await playMusic();
-    return;
-  }
-
-  music.pause();
-  deck.dataset.playing = "false";
-  setStatus("Paused.");
-  updatePlayButton(false);
 }
 
-function selectMode(nextMode) {
-  if (!TRACKS[nextMode] || nextMode === mode) return;
-  mode = nextMode;
-  applyTrack({ preservePosition: true, autoplay: started });
-  playClip(TRACKS[mode].voice);
+function play() {
+  const revision = ++generation;
+  wantsPlay = true;
+  phase = "Starting";
+  render();
+  player.play().catch((error) => {
+    if (revision !== generation) return;
+    wantsPlay = false;
+    phase =
+      error.name === "NotAllowedError"
+        ? "Tap Play to resume"
+        : "Audio unavailable. Tap Play to retry.";
+    render();
+  });
 }
 
-function selectDrive(nextDrive) {
-  if (!DRIVES[nextDrive] || nextDrive === drive) return;
-  drive = nextDrive;
-  applyTrack({ preservePosition: true, autoplay: started });
+function pause() {
+  ++generation;
+  wantsPlay = false;
+  player.pause();
+  phase = "Paused";
+  render();
 }
 
-function applyTrack({ preservePosition, autoplay }) {
-  const oldDuration = Number.isFinite(music.duration) && music.duration > 0 ? music.duration : 0;
-  const oldRatio = preservePosition && oldDuration ? music.currentTime / oldDuration : 0;
-  const file = trackFile(mode, drive);
-  const wasPlaying = !music.paused;
-
-  music.addEventListener("loadedmetadata", () => {
-    if (oldRatio && Number.isFinite(music.duration) && music.duration > 0) {
-      safeSeek(music, Math.max(0, Math.min(music.duration - 0.25, music.duration * oldRatio)));
-    }
-    if (autoplay || wasPlaying) playMusic();
-  }, { once: true });
-  music.src = file;
-  music.load();
-
-  updateLabels(file);
+function loadSource(file, start, autoplay) {
+  ++generation;
+  sourceEvents?.abort();
+  sourceEvents = new AbortController();
+  const options = { signal: sourceEvents.signal };
+  player.loop = !cue;
+  player.src = file;
+  if (start > 0)
+    player.addEventListener(
+      "loadedmetadata",
+      () => {
+        if (Number.isFinite(player.duration))
+          player.currentTime = Math.min(
+            start,
+            Math.max(0, player.duration - 0.1),
+          );
+      },
+      { ...options, once: true },
+    );
+  player.addEventListener(
+    "playing",
+    () => {
+      if (player.paused) return;
+      wantsPlay = true;
+      phase = "Playing";
+      render();
+    },
+    options,
+  );
+  player.addEventListener(
+    "waiting",
+    () => {
+      if (wantsPlay && !player.paused) {
+        phase = "Buffering";
+        render();
+      }
+    },
+    options,
+  );
+  player.addEventListener(
+    "pause",
+    () => {
+      if (!wantsPlay || !player.paused || player.ended || player.readyState === 0) return;
+      ++generation;
+      wantsPlay = false;
+      phase = "Paused";
+      render();
+    },
+    options,
+  );
+  player.addEventListener(
+    "error",
+    () => {
+      if (!player.error) return;
+      wantsPlay = false;
+      phase = "Audio unavailable. Tap Play to retry.";
+      render();
+    },
+    options,
+  );
+  player.addEventListener(
+    "ended",
+    () => {
+      if (!cue || !player.ended) return;
+      cue = null;
+      loadSource(musicFile(), musicPosition, returnToMusic);
+    },
+    options,
+  );
+  wantsPlay = false;
+  phase = "On standby";
+  if (autoplay) play();
+  else render();
 }
 
-async function playMusic() {
+function resume() {
+  if (player.error) {
+    const current = player.getAttribute("src");
+    loadSource(current, player.currentTime || 0, true);
+  } else play();
+}
+
+function selectMode(next) {
+  if (next === mode && !cue) return;
+  const autoplay = cue ? returnToMusic && wantsPlay : wantsPlay;
+  cue = null;
+  musicPosition = 0;
+  mode = next;
+  loadSource(musicFile(), 0, autoplay);
+}
+
+el("transport").onclick = () => (wantsPlay ? pause() : resume());
+el("modes").onclick = (event) => {
+  const button = event.target.closest("[data-mode]");
+  if (button) selectMode(button.dataset.mode);
+};
+el("drives").onclick = (event) => {
+  const button = event.target.closest("[data-drive]");
+  if (!button || button.disabled || drive === button.dataset.drive) return;
+  const autoplay = cue ? returnToMusic && wantsPlay : wantsPlay;
+  const ratio =
+    !cue && player.duration ? player.currentTime / player.duration : 0;
+  cue = null;
+  drive = button.dataset.drive;
+  loadSource(musicFile(), 0, autoplay);
+  if (ratio)
+    player.addEventListener(
+      "loadedmetadata",
+      () => {
+        if (Number.isFinite(player.duration))
+          player.currentTime = ratio * player.duration;
+      },
+      { once: true, signal: sourceEvents.signal },
+    );
+};
+el("cues").onclick = (event) => {
+  const button = event.target.closest("[data-cue]");
+  if (!button || (cue === button.textContent && wantsPlay)) return;
+  if (!cue) {
+    returnToMusic = wantsPlay;
+    musicPosition = player.currentTime;
+  } else if (!wantsPlay) returnToMusic = false;
+  cue = button.textContent;
+  const key = button.dataset.cue;
+  const file =
+    key === "voice"
+      ? "voice/v_evt_" + reports[report++ % reports.length]
+      : "ops/" + key;
+  loadSource("audio/" + file + ".mp3", 0, true);
+};
+
+if (navigator.audioSession) {
   try {
-    await music.play();
-    deck.dataset.playing = "true";
-    updatePlayButton(true);
-    setStatus(`${TRACKS[mode].label} music running in ${DRIVES[drive].label}.`);
-    startProgress();
-  } catch (_) {
-    deck.dataset.playing = "false";
-    updatePlayButton(false);
-    setStatus("Tap Play again to unlock audio.");
+    navigator.audioSession.type = "playback";
+    navigator.audioSession.addEventListener("statechange", () => {
+      if (navigator.audioSession.state === "interrupted" && wantsPlay) {
+        pause();
+        phase = "Interrupted. Tap Play to resume.";
+        render();
+      }
+    });
+  } catch {}
+}
+if (navigator.mediaSession) {
+  for (const [action, handler] of Object.entries({
+    play: resume,
+    pause,
+    nexttrack: () => stepMode(1),
+    previoustrack: () => stepMode(-1),
+  })) {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch {}
   }
 }
-
-function restartTrack() {
-  safeSeek(music, 0);
-  setStatus("Track restarted.");
-  if (started) playMusic();
+function stepMode(step) {
+  const names = Object.keys(modes);
+  selectMode(names[(names.indexOf(mode) + step + names.length) % names.length]);
 }
+loadSource(musicFile(), 0, false);
 
-function triggerOp(op) {
-  if (op === "voice") {
-    playClip(STORIES[storyIndex % STORIES.length]);
-    storyIndex += 1;
-    setStatus("Ship AI line fired.");
-    return;
+// A song chosen on the phone stays in this origin's local storage.
+const privateCache = "starhopper-personal-soundtrack-v1";
+const privateKey = new URL("personal-emergency-song", document.baseURI).href;
+let importVersion = 0;
+async function useTheme(blob, name) {
+  const old = privateTheme;
+  privateTheme = URL.createObjectURL(blob);
+  el("theme-note").textContent = "Emergency soundtrack: " + name;
+  if (mode === "emergency" && !cue) loadSource(privateTheme, 0, wantsPlay);
+  if (old) URL.revokeObjectURL(old);
+}
+async function restoreTheme() {
+  if (!window.caches) return;
+  try {
+    const saved = await (await caches.open(privateCache)).match(privateKey);
+    if (!saved) return;
+    const blob = await saved.blob();
+    if (!importVersion)
+      await useTheme(
+        blob,
+        decodeURIComponent(saved.headers.get("X-Song") || "Your song"),
+      );
+  } catch {
+    el("theme-status").textContent = "Choose your song again to restore it.";
   }
-
-  const file = OPS[op];
+}
+void restoreTheme();
+async function checkSong(file) {
+  // A muted metadata probe never opens a second playback channel.
+  const probe = document.createElement("audio");
+  const url = URL.createObjectURL(file);
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => finish(false), 10000);
+      function finish(valid) {
+        clearTimeout(timer);
+        valid ? resolve() : reject(new Error("Unsupported song"));
+      }
+      probe.preload = "metadata";
+      probe.onloadedmetadata = () =>
+        finish(Number.isFinite(probe.duration) && probe.duration > 0);
+      probe.onerror = () => finish(false);
+      probe.src = url;
+    });
+  } finally {
+    probe.onloadedmetadata = probe.onerror = null;
+    probe.removeAttribute("src");
+    probe.load();
+    URL.revokeObjectURL(url);
+  }
+}
+el("theme").onchange = async (event) => {
+  const file = event.target.files[0];
   if (!file) return;
-  playClip(file);
-  setStatus(`${opLabel(op)} sound fired.`);
-}
-
-function openSignal(event) {
-  if (!started) {
-    setStatus("Tap Play first.");
+  const input = event.target;
+  input.disabled = true;
+  try {
+    await checkSong(file);
+  } catch {
+    el("theme-status").textContent =
+      "This song could not be opened. Choose an MP3 or M4A file.";
+    input.disabled = false;
+    input.value = "";
     return;
   }
-  signalOpen = true;
-  event.currentTarget.setPointerCapture?.(event.pointerId);
-  safeSeek(signal, 0);
-  void signal.play().catch(() => {});
-  setStatus("Signal loop open.");
-}
-
-function closeSignal() {
-  if (!signalOpen) return;
-  signalOpen = false;
-  signal.pause();
-  safeSeek(signal, 0);
-  playClip(OPS.scan);
-  setStatus("Signal ping sent.");
-}
-
-function playClip(file) {
-  if (!started || !file) return;
-  effect.pause();
-  safeSeek(effect, 0);
-  effect.src = file.startsWith("audio/") ? file : `audio/${file}`;
-  effect.load();
-  void effect.play().catch(() => {});
-}
-
-function updateLabels(file) {
-  deck.dataset.mode = mode;
-  deck.dataset.drive = drive;
-  nowTitle.textContent = `${TRACKS[mode].label} Music`;
-  modeLabel.textContent = TRACKS[mode].label;
-  driveLabel.textContent = DRIVES[drive].label;
-  fileReadout.textContent = file;
-
-  $$(".mode-button").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
-  });
-  $$(".drive-button").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.drive === drive));
-  });
-
-  setStatus(`${TRACKS[mode].label} ${DRIVES[drive].detail} file loaded.`);
-}
-
-function updatePlayButton(playing) {
-  playButton.querySelector("span").textContent = playing ? "Pause" : "Play";
-  playButton.querySelector("small").textContent = playing ? "music running" : "unlock audio";
-}
-
-function startProgress() {
-  window.clearInterval(progressTimer);
-  progressTimer = window.setInterval(() => {
-    if (!Number.isFinite(music.duration) || music.duration <= 0) return;
-    const pct = Math.max(0, Math.min(1, music.currentTime / music.duration));
-    progressBar.style.transform = `scaleX(${pct})`;
-  }, 250);
-}
-
-function trackFile(trackMode, trackDrive) {
-  return `audio/mix/${trackMode}-${trackDrive}.mp3`;
-}
-
-function opLabel(op) {
-  return op.charAt(0).toUpperCase() + op.slice(1);
-}
-
-function setStatus(message) {
-  statusLine.textContent = message;
-}
-
-function safeSeek(audio, time) {
+  ++importVersion;
   try {
-    audio.currentTime = time;
-  } catch (_) {}
-}
-
-function configureAudioSession() {
-  const session = typeof navigator !== "undefined" ? navigator.audioSession : null;
-  if (!session) return;
-  try {
-    session.type = "playback";
-  } catch (_) {}
-}
+    const cache = await caches.open(privateCache);
+    await cache.put(
+      privateKey,
+      new Response(file, {
+        headers: {
+          "Content-Type": file.type || "audio/mpeg",
+          "X-Song": encodeURIComponent(file.name),
+        },
+      }),
+    );
+    await useTheme(file, file.name);
+    el("theme-status").textContent = "Saved on this device.";
+  } catch {
+    await useTheme(file, file.name);
+    el("theme-status").textContent =
+      "Available for this visit. Device storage is unavailable.";
+  } finally {
+    input.disabled = false;
+  }
+};

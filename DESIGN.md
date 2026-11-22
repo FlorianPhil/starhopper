@@ -31,12 +31,12 @@ reliability decision.
 ## Components
 
 - Large Play/Pause control.
-- Visible current file readout.
-- Progress bar.
-- Four music bed buttons.
+- Visible playback state and current mode.
+- Five flight modes, including Emergency.
 - Three pre-rendered energy buttons.
 - Operation SFX buttons from real processed source sounds.
-- Hold-to-signal control.
+- Tap-to-transmit ship radio and crew reports.
+- Offline saving and a local Emergency soundtrack picker under Before the ride.
 
 All controls must be thumb-sized and readable on mobile. Avoid precision
 dragging, custom sliders, small icons, nested panels, and visual complexity that
