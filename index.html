@@ -22,10 +22,42 @@
         <span class="wordmark"><img src="img/icon.svg" alt="" />STARHOPPER</span
         ><span>SH-7 / FLIGHT DECK</span>
       </header>
+      <section class="display" aria-label="Flight soundtrack">
+        <div class="screen">
+          <div class="scope" aria-hidden="true"><i></i></div>
+          <div class="music-readout">
+            <small id="state" role="status">On standby</small>
+            <h2 id="title">Combat</h2>
+            <p id="caption">Battle stations</p>
+          </div>
+          <button id="transport">
+            <span id="glyph" aria-hidden="true">▶</span>
+            <span id="action">Play Combat</span>
+          </button>
+        </div>
+        <div class="modes" id="modes" role="group" aria-label="Music modes">
+          <button data-mode="combat" aria-pressed="true">Combat</button>
+          <button data-mode="cruise" aria-pressed="false">Cruise</button>
+          <button data-mode="stealth" aria-pressed="false">Stealth</button>
+          <button data-mode="warp" aria-pressed="false">Warp</button>
+          <button data-mode="emergency" aria-pressed="false">Emergency</button>
+        </div>
+      </section>
       <section class="soundboard" aria-labelledby="board-title">
-        <h1 id="board-title">Soundboard</h1>
-        <div class="balance-control"><label for="balance">Music / sound balance</label>
-          <div><span>Music</span><input id="balance" type="range" min="0" max="100" step="1" value="50"><span>Sounds</span></div>
+        <h1 id="board-title">Sound deck</h1>
+        <div class="balance-control">
+          <label for="balance">Music / sound balance</label>
+          <div>
+            <span>Music</span
+            ><input
+              id="balance"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="50"
+            /><span>Sounds</span>
+          </div>
         </div>
         <div id="banks" aria-label="Sound groups"></div>
         <div id="pads" aria-label="Sound pads"></div>
@@ -33,28 +65,6 @@
         <label class="import-button" for="pack">Load sound pack</label>
         <input type="file" id="pack" accept=".json,application/json" />
         <span id="pack-status" role="status"></span>
-      </section>
-      <section class="display" aria-label="Music playback">
-        <div class="orbit" aria-hidden="true"></div>
-        <div class="screen">
-          <small id="state" role="status">On standby</small>
-          <h2 id="title">Combat</h2>
-          <p id="caption">Battle stations</p>
-          <button id="transport">
-            <span id="glyph" aria-hidden="true">▶</span>
-            <span id="action">Play Combat</span>
-          </button>
-        </div>
-      </section>
-      <section>
-        <h2>Music mode</h2>
-        <div class="modes" id="modes">
-          <button data-mode="combat" aria-pressed="true">Combat</button>
-          <button data-mode="cruise" aria-pressed="false">Cruise</button>
-          <button data-mode="stealth" aria-pressed="false">Stealth</button>
-          <button data-mode="warp" aria-pressed="false">Warp</button>
-          <button data-mode="emergency" aria-pressed="false">Emergency</button>
-        </div>
       </section>
       <details>
         <summary>Before the ride</summary>

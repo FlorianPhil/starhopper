@@ -49,9 +49,21 @@
       pad.buffer = (async () => {
         const response = await fetch(pad.data);
         if (!response.ok) throw new Error("Sound unavailable");
-        return flightMix
+        const buffer = await flightMix
           .get()
           .context.decodeAudioData(await response.arrayBuffer());
+        pad.duration = buffer.duration;
+        const samples = buffer.getChannelData(0);
+        pad.peaks = Array.from({ length: 28 }, (_, index) => {
+          const first = Math.floor((samples.length * index) / 28);
+          const end = Math.floor((samples.length * (index + 1)) / 28);
+          let power = 0;
+          for (let i = first; i < end; i += 24)
+            power += samples[i] * samples[i];
+          return Math.sqrt(power / Math.max(1, Math.ceil((end-first)/24)));
+        });
+        if (pad.preview?.isConnected) paintWave(pad);
+        return buffer;
       })().catch((error) => {
         delete pad.buffer;
         throw error;
@@ -103,11 +115,28 @@
     }
   }
 
+  function paintWave(pad) {
+    const preview = pad.preview;
+    preview.replaceChildren();
+    const wave = document.createElement("span");
+    wave.className = "waveform";
+    const max = Math.max(...pad.peaks, 0.001);
+    for (const peak of pad.peaks) {
+      const bar = document.createElement("i");
+      bar.style.height = Math.round(2 + 11 * Math.sqrt(peak / max)) + "px";
+      wave.append(bar);
+    }
+    const duration = document.createElement("span");
+    duration.textContent = pad.duration.toFixed(1) + "s";
+    preview.append(wave, duration);
+  }
+
   function draw() {
     banks.replaceChildren();
     for (const name of new Set(["All", ...pads.map((pad) => pad.group)])) {
       const button = document.createElement("button");
       button.textContent = name;
+      button.dataset.bank = name;
       button.setAttribute("aria-pressed", name === group);
       button.onclick = () => {
         group = name;
@@ -120,7 +149,16 @@
       (pad) => group === "All" || pad.group === group,
     )) {
       const button = document.createElement("button");
-      button.textContent = pad.name;
+      button.setAttribute("aria-label", pad.name);
+      button.dataset.bank = pad.group;
+      const label = document.createElement("span");
+      label.className = "pad-name";
+      label.textContent = pad.name;
+      pad.preview = document.createElement("span");
+      pad.preview.className = "clip-preview";
+      pad.preview.setAttribute("aria-hidden", "true");
+      button.append(label, pad.preview);
+      if (pad.peaks) paintWave(pad);
       const meter = document.createElement("span");
       meter.className = "pad-charge";
       meter.setAttribute("aria-hidden", "true");

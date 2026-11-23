@@ -33,7 +33,7 @@ reliability decision.
 - Large Play/Pause control.
 - Visible playback state and current mode.
 - Five flight modes, including Emergency.
-- Sound banks above the optional soundtrack.
+- Compact soundtrack transport above the sound banks. Each pad displays the waveform and duration of the recording. Soft bank colors distinguish Defense, Weapons, Engineering, Droids, Flight and Crew.
 - Operation SFX buttons from real processed source sounds.
 - One tap triggers a decoded sample over any playing music.
 - Offline saving and a local Emergency soundtrack picker under Before the ride.
