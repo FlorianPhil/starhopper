@@ -37,8 +37,8 @@ const flightMix = (() => {
     ];
     const now = graph.context.currentTime;
     for (const [bus, level] of levels) {
-      if (smooth) {
-        bus.gain.cancelScheduledValues(now);
+      bus.gain.cancelScheduledValues(now);
+      if (smooth && graph.context.state === "running") {
         bus.gain.setValueAtTime(bus.gain.value, now);
         bus.gain.linearRampToValueAtTime(level, now + 0.02);
       } else bus.gain.value = level;

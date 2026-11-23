@@ -1,4 +1,4 @@
-const SW_VERSION = "starhopper-v5";
+const SW_VERSION = "starhopper-v6";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const OFFLINE_CACHE_PREFIX = "starhopper-offline-ready-";
 const COMPLETE_MARKER = new URL("__offline-cache-complete__", self.registration.scope).href;
