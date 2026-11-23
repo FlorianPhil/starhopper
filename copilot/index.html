@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#101820" />
+    <title>Orion · Starhopper Copilot</title>
+    <link rel="icon" href="../img/icon.svg" />
+    <link rel="stylesheet" href="copilot.css" />
+    <script defer src="commands.js"></script>
+    <script defer src="bridge.js"></script>
+    <script defer src="realtime.js"></script>
+    <script defer src="call.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="../img/icon.svg" alt="" /><strong>STARHOPPER</strong
+        ><span>FLIGHT COMMS</span>
+      </header>
+      <section class="console">
+        <div class="readout">
+          <div class="scope" aria-hidden="true"></div>
+          <div>
+            <small>Onboard copilot</small>
+            <h1>Orion</h1>
+          </div>
+        </div>
+        <p id="status" role="status">Loading the ship’s sounds…</p>
+        <button id="call" disabled>Call Orion</button>
+      </section>
+      <p class="prompt">
+        Try “There’s an asteroid ahead.” Then tell Orion whether to jump.
+      </p>
+      <div class="systems">
+        <div><small>Music mode</small><strong id="mode">Standby</strong></div>
+        <div><small>Last sound</small><strong id="cue">None yet</strong></div>
+      </div>
+      <section aria-label="Crew conversation">
+        <div id="conversation" role="log" aria-live="polite"></div>
+        <form id="command">
+          <label for="message">Crew transmission</label>
+          <div class="send">
+            <input
+              id="message"
+              maxlength="300"
+              placeholder="Type a command"
+              autocomplete="off"
+            /><button id="send" disabled>Send</button>
+          </div>
+        </form>
+      </section>
+      <details>
+        <summary>Voice settings</summary>
+        <label for="voice">Ship voice</label
+        ><select id="voice">
+          <option value="">Default English voice</option>
+        </select>
+        <p>
+          Bridge mode uses your browser’s speech service and a set of ship
+          commands. For spoken commands on iPhone, open in Safari with Siri
+          enabled.
+        </p>
+        <details>
+          <summary>Connect a GPT voice server</summary>
+          <p>
+            Use your configured private Realtime server for open-ended
+            conversation. Starting a GPT call uses that server’s OpenAI API
+            account.
+          </p>
+          <form id="gpt">
+            <label for="endpoint">Session endpoint</label
+            ><input
+              id="endpoint"
+              type="url"
+              placeholder="https://…"
+              required
+            /><label for="access">Private access token</label
+            ><input
+              id="access"
+              type="password"
+              autocomplete="off"
+              required
+            /><button id="gpt-start" disabled>Start GPT call</button>
+          </form>
+        </details>
+      </details>
+      <audio id="music" loop playsinline></audio>
+    </main>
+  </body>
+</html>
