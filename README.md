@@ -4,7 +4,7 @@ A passenger's starship soundboard for family car rides. Open the [flight deck](h
 
 ## Playing the board
 
-Tap a pad to hear it. Use the bank buttons to narrow the collection. For background music, choose a flight mode and press Play. A sound pad keeps the current track playing, and a second pad replaces the first effect with a short fade.
+Tap a pad to hear it. Use the bank buttons to narrow the collection. For background music, choose a flight mode and press Play. The balance slider favors music on the left and sounds on the right. A pad starts its sound on press and fills a charge bar for one second. A sound pad keeps the current track playing, and a second pad replaces the first effect with a short fade.
 
 **Load sound pack** opens a personal Starhopper JSON file. The board checks and decodes every recording before replacing the current collection, then saves the pack in this browser. The **Before the ride** drawer saves the bundled sounds and music and lets you select a personal Emergency song. The standalone personal HTML edition contains the board, samples and music in one file.
 

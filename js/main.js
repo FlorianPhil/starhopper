@@ -49,6 +49,7 @@ function render() {
 }
 
 function play() {
+  void flightMix.get().context.resume().catch(() => {});
   const revision = ++generation;
   wantsPlay = true;
   phase = "Starting";

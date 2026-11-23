@@ -11,6 +11,7 @@
     <link rel="icon" href="img/icon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="css/cockpit.css" />
+    <script defer src="js/mixer.js"></script>
     <script defer src="js/pads.js"></script>
     <script defer src="js/main.js"></script>
     <script defer src="offline.js"></script>
@@ -23,6 +24,9 @@
       </header>
       <section class="soundboard" aria-labelledby="board-title">
         <h1 id="board-title">Soundboard</h1>
+        <div class="balance-control"><label for="balance">Music / sound balance</label>
+          <div><span>Music</span><input id="balance" type="range" min="0" max="100" step="1" value="50"><span>Sounds</span></div>
+        </div>
         <div id="banks" aria-label="Sound groups"></div>
         <div id="pads" aria-label="Sound pads"></div>
         <p id="pad-status" role="status"></p>

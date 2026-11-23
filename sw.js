@@ -1,4 +1,4 @@
-const SW_VERSION = "starhopper-v4";
+const SW_VERSION = "starhopper-v5";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const OFFLINE_CACHE_PREFIX = "starhopper-offline-ready-";
 const COMPLETE_MARKER = new URL("__offline-cache-complete__", self.registration.scope).href;
@@ -8,6 +8,7 @@ const SHELL_FILES = [
   "index.html",
   "css/cockpit.css",
   "js/main.js",
+  "js/mixer.js",
   "js/pads.js",
   "offline.js",
   "manifest.webmanifest",

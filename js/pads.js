@@ -23,17 +23,25 @@
   }));
   const storedKey = new URL("personal-pad-pack", document.baseURI).href;
   const cacheName = "starhopper-personal-pads-v1";
-  let context;
+  let charge;
   let pads = [];
   let group = "All";
   let active;
   let hit = 0;
   let revision = 0;
 
-  function mixer() {
-    const Audio = window.AudioContext || window.webkitAudioContext;
-    if (!Audio) throw new Error("This browser cannot play sound pads.");
-    return (context ||= new Audio({ latencyHint: "interactive" }));
+  function startCharge(button) {
+    charge?.cancel();
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    charge = button
+      .querySelector(".pad-charge")
+      .animate(
+        [
+          { transform: reduced ? "scaleX(1)" : "scaleX(0)" },
+          { transform: "scaleX(1)" },
+        ],
+        { duration: 1000, easing: "linear" },
+      );
   }
 
   function decode(pad) {
@@ -41,7 +49,9 @@
       pad.buffer = (async () => {
         const response = await fetch(pad.data);
         if (!response.ok) throw new Error("Sound unavailable");
-        return mixer().decodeAudioData(await response.arrayBuffer());
+        return flightMix
+          .get()
+          .context.decodeAudioData(await response.arrayBuffer());
       })().catch((error) => {
         delete pad.buffer;
         throw error;
@@ -54,15 +64,17 @@
     if (!active) return;
     const { source, gain, button } = active;
     button.dataset.playing = "false";
-    gain.gain.setTargetAtTime(0, context.currentTime, 0.004);
-    source.stop(context.currentTime + 0.025);
+    const now = source.context.currentTime;
+    gain.gain.setTargetAtTime(0, now, 0.004);
+    source.stop(now + 0.025);
     active = null;
   }
 
   async function playPad(pad, button) {
     const ticket = ++hit;
+    startCharge(button);
     try {
-      const audio = mixer();
+      const { context: audio, effects } = flightMix.get();
       const [, buffer] = await Promise.all([audio.resume(), decode(pad)]);
       if (ticket !== hit) return;
       stopPad();
@@ -70,7 +82,7 @@
       const gain = audio.createGain();
       gain.gain.value = 0.85;
       source.buffer = buffer;
-      source.connect(gain).connect(audio.destination);
+      source.connect(gain).connect(effects);
       source.onended = () => {
         source.disconnect();
         gain.disconnect();
@@ -84,8 +96,10 @@
       button.dataset.playing = "true";
       status.textContent = pad.name;
     } catch {
-      if (ticket === hit)
+      if (ticket === hit) {
+        charge?.cancel();
         status.textContent = "Could not play " + pad.name + ". Tap to retry.";
+      }
     }
   }
 
@@ -107,7 +121,21 @@
     )) {
       const button = document.createElement("button");
       button.textContent = pad.name;
-      button.onclick = () => playPad(pad, button);
+      const meter = document.createElement("span");
+      meter.className = "pad-charge";
+      meter.setAttribute("aria-hidden", "true");
+      button.append(meter);
+      button.onpointerdown = (event) => {
+        if (event.isPrimary && event.button === 0) playPad(pad, button);
+      };
+      button.onclick = (event) => {
+        if (event.detail === 0) playPad(pad, button);
+        else {
+          // Some touch browsers grant initial audio activation on release.
+          const audio = flightMix.get().context;
+          if (audio.state !== "running") void audio.resume().catch(() => {});
+        }
+      };
       board.append(button);
     }
   }
@@ -201,13 +229,6 @@
     }
     await Promise.allSettled(builtIn.map(decode));
   }
-  document.querySelector("#transport").addEventListener("click", () => {
-    try {
-      void mixer()
-        .resume()
-        .catch(() => {});
-    } catch {}
-  });
   initialize().catch(() => {
     status.textContent =
       "Could not prepare the soundboard. Load a sound pack to retry.";

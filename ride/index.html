@@ -15,7 +15,7 @@
   try {
     const raw = Uint8Array.from(atob(fragment.replaceAll("-", "+").replaceAll("_", "/") + "="), c => c.charCodeAt(0));
     const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["decrypt"]);
-    const response = await fetch("board.bin");
+    const response = await fetch("board.bin", {cache:"no-cache"});
     if (!response.ok) throw new Error("Download failed");
     const bytes = new Uint8Array(await response.arrayBuffer());
     const plain = await crypto.subtle.decrypt({name:"AES-GCM",iv:bytes.slice(0,12)}, key, bytes.subarray(12));

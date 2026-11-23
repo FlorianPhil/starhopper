@@ -331,3 +331,11 @@ input {
     align-self: start;
   }
 }
+
+.balance-control { margin: 0 0 12px; max-width: 460px; }
+.balance-control label { font-weight: 650; font-size: .95rem; }
+.balance-control div { display: flex; align-items: center; gap: 12px; font-size: .85rem; }
+#balance { flex: 1; height: 44px; min-width: 60px; margin: 0; accent-color: var(--accent); }
+#pads button { position: relative; overflow: hidden; }
+.pad-charge { position: absolute; left: 5px; right: 5px; bottom: 3px; height: 5px;
+  background: currentColor; border-radius: 4px; transform-origin: left; transform: scaleX(0); pointer-events: none; }
