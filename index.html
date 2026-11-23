@@ -11,6 +11,7 @@
     <link rel="icon" href="img/icon.svg" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="css/cockpit.css" />
+    <script defer src="js/pads.js"></script>
     <script defer src="js/main.js"></script>
     <script defer src="offline.js"></script>
   </head>
@@ -20,55 +21,42 @@
         <span class="wordmark"><img src="img/icon.svg" alt="" />STARHOPPER</span
         ><span>SH-7 / FLIGHT DECK</span>
       </header>
-      <section class="display" aria-label="Flight playback">
+      <section class="soundboard" aria-labelledby="board-title">
+        <h1 id="board-title">Soundboard</h1>
+        <div id="banks" aria-label="Sound groups"></div>
+        <div id="pads" aria-label="Sound pads"></div>
+        <p id="pad-status" role="status"></p>
+        <label class="import-button" for="pack">Load sound pack</label>
+        <input type="file" id="pack" accept=".json,application/json" />
+        <span id="pack-status" role="status"></span>
+      </section>
+      <section class="display" aria-label="Music playback">
         <div class="orbit" aria-hidden="true"></div>
         <div class="screen">
           <small id="state" role="status">On standby</small>
-          <h1 id="title">Combat</h1>
+          <h2 id="title">Combat</h2>
           <p id="caption">Battle stations</p>
           <button id="transport">
-            <span aria-hidden="true" id="glyph">▶</span>
+            <span id="glyph" aria-hidden="true">▶</span>
             <span id="action">Play Combat</span>
           </button>
         </div>
       </section>
       <section>
-        <h2>Flight mode</h2>
+        <h2>Music mode</h2>
         <div class="modes" id="modes">
-          <button data-mode="combat" aria-pressed="true">Combat</button
-          ><button data-mode="cruise" aria-pressed="false">Cruise</button
-          ><button data-mode="stealth" aria-pressed="false">Stealth</button
-          ><button data-mode="warp" aria-pressed="false">Warp</button
-          ><button data-mode="emergency" aria-pressed="false">Emergency</button>
-        </div>
-      </section>
-      <section class="drive">
-        <h2>Engine</h2>
-        <div id="drives">
-          <button data-drive="glide" aria-pressed="true">Glide</button
-          ><button data-drive="boost" aria-pressed="false">Boost</button
-          ><button data-drive="overdrive" aria-pressed="false">
-            Overdrive
-          </button>
-        </div>
-      </section>
-      <section>
-        <h2>Ship radio</h2>
-        <div class="cues" id="cues">
-          <button data-cue="scan">Scan</button
-          ><button data-cue="shield">Shields</button
-          ><button data-cue="boost">Thruster</button
-          ><button data-cue="alert">Alert</button
-          ><button data-cue="signal">Signal</button
-          ><button data-cue="confirm">Confirm</button
-          ><button data-cue="voice">Crew report</button>
+          <button data-mode="combat" aria-pressed="true">Combat</button>
+          <button data-mode="cruise" aria-pressed="false">Cruise</button>
+          <button data-mode="stealth" aria-pressed="false">Stealth</button>
+          <button data-mode="warp" aria-pressed="false">Warp</button>
+          <button data-mode="emergency" aria-pressed="false">Emergency</button>
         </div>
       </section>
       <details>
         <summary>Before the ride</summary>
         <p>
-          Save the deck on this phone while online. The passenger can run the
-          radio while the driver listens.
+          Save the deck on this phone while online. Your saved sound pack stays
+          on this device.
         </p>
         <button id="offline">Save for trip</button>
         <p id="offline-status" role="status"></p>

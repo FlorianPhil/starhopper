@@ -1,4 +1,4 @@
-const SW_VERSION = "starhopper-v3";
+const SW_VERSION = "starhopper-v4";
 const SHELL_CACHE = `${SW_VERSION}-shell`;
 const OFFLINE_CACHE_PREFIX = "starhopper-offline-ready-";
 const COMPLETE_MARKER = new URL("__offline-cache-complete__", self.registration.scope).href;
@@ -8,17 +8,17 @@ const SHELL_FILES = [
   "index.html",
   "css/cockpit.css",
   "js/main.js",
+  "js/pads.js",
   "offline.js",
   "manifest.webmanifest",
   "img/icon.svg"
 ];
 
 const MEDIA_FILES = [
-  ...["combat", "cruise", "stealth", "warp"].flatMap((mode) =>
-    ["glide", "boost", "overdrive"].map((drive) => `audio/mix/${mode}-${drive}.mp3`)
-  ),
-  ...["alert", "scan", "shield", "boost", "signal", "confirm"].map((name) => `audio/ops/${name}.mp3`),
-  ...["boost", "signal", "comet", "nebula", "wormhole", "cookies"].map((cue) => `audio/voice/v_evt_${cue}.mp3`)
+  ...["combat", "cruise", "stealth", "warp"].map(mode => `audio/mix/${mode}-glide.mp3`),
+  "audio/mix/combat-overdrive.mp3",
+  ...["alert", "scan", "shield", "boost", "signal", "confirm"].map(name => `audio/ops/${name}.mp3`),
+  ...["comet", "cookies"].map(name => `audio/voice/v_evt_${name}.mp3`)
 ];
 
 self.addEventListener("install", (event) => {
@@ -152,7 +152,7 @@ async function readOfflineStatus() {
     const marker = await cache.match(COMPLETE_MARKER);
     if (!marker) continue;
     const record = await marker.json();
-    if (record.files === MEDIA_FILES.length && await hasMediaEntries(cache)) {
+    if (record.files >= MEDIA_FILES.length && await hasMediaEntries(cache)) {
       return { ready: true, files: MEDIA_FILES.length, completedAt: record.completedAt };
     }
   }

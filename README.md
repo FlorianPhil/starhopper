@@ -1,26 +1,18 @@
 # Starhopper
 
-A passenger's starship soundboard for family car rides. Open the [flight deck](https://florianphil.github.io/starhopper/) on the iPhone that supplies the car's audio. Pick a flight mode and press Play.
+A passenger's starship soundboard for family car rides. Open the [flight deck](https://florianphil.github.io/starhopper/) on the iPhone that supplies the car's audio. Tap a sound or start a music bed.
 
-## Before the ride
+## Playing the board
 
-Open **Before the ride** and tap **Save for trip** while online. Wait for the saved confirmation in the same browser or Home Screen installation you will use in the car. Combat, Cruise, Stealth and Warp each have three recorded energy levels. Emergency starts with Combat Overdrive. Choose an audio file under **Emergency soundtrack** to give Emergency its own song. That song stays on the device. Browser storage can be cleared by the user or the OS.
+Tap a pad to hear it. Use the bank buttons to narrow the collection. For background music, choose a flight mode and press Play. A sound pad keeps the current track playing, and a second pad replaces the first effect with a short fade.
 
-## What changed after the June deck
+**Load sound pack** opens a personal Starhopper JSON file. The board checks and decodes every recording before replacing the current collection, then saves the pack in this browser. The **Before the ride** drawer saves the bundled sounds and music and lets you select a personal Emergency song. The standalone personal HTML edition contains the board, samples and music in one file.
 
-The June release had already replaced live synthesis with recorded MP3s. Its remaining problems were in playback control.
+## Audio design
 
-- The old deck could play music, an effect and a held signal through three media elements. Its buttons announced effects even when playback failed.
-- Backgrounding always paused music. Returning to the page could restart manually paused playback because the controller remembered only whether the deck had ever started.
-- Rapid changes installed multiple metadata callbacks on the same player. An old selection could seek or start the new track. Going out of coverage could still require a fresh download.
+The June deck could unexpectedly restart paused music. The first rebuild fixed that and ran smoothly in the car, but every radio cue deliberately took over the music player. The passenger heard a break of about a second. The energy controls mostly changed the music speed.
 
-The rebuilt deck uses one native media element. Ship radio takes the channel for one clip, then returns to the music position it interrupted. A new cue replaces the current cue immediately. Starting a cue from standby returns to standby. Pause remains available during a cue. Switching flight modes starts the new track at its beginning. Changing engine level during music carries across the relative song position. The browser handles music looping. Playback state comes from the media element, and replacing a source cancels its previous listeners.
-
-The phone sends ordinary media audio over its selected output. Where supported, system media controls can pause, play or change flight modes. The web page runs on the phone. A dedicated CarPlay dashboard app requires a separate native integration and Apple's audio entitlement. See [Apple's CarPlay developer guide](https://developer.apple.com/download/files/CarPlay-Developer-Guide.pdf).
-
-Wireless CarPlay uses Bluetooth for discovery and Wi-Fi for audio. Wired CarPlay uses USB. Plain Bluetooth audio is a third route. The deck leaves routing to the phone. See [Apple’s explanation of CarPlay transport](https://developer.apple.com/videos/play/wwdc2016/722/).
-
-Offline storage removes the trip's dependency on streaming. Speaker delay from the car's output buffer still applies. A radio cue deliberately takes over the channel, so music does pause during the transmission. Screen locking, calls, navigation prompts and route disconnects remain under iOS and head-unit control. Physical acceptance is a parked test on the intended phone and car: check a music loop, cue return, lock and unlock, a call, and disconnect and reconnect, using the wired or wireless route normally used.
+The current deck keeps the music on its native player and pre-decodes effects into a shared Web Audio context. Pad taps never reload, pause, seek or change the speed of the music. The speed controls have been removed. The output still follows the phone's selected route, including its speaker buffering. Wireless CarPlay pairs using Bluetooth and sends audio over Wi-Fi. See [Apple's CarPlay transport explanation](https://developer.apple.com/videos/play/wwdc2016/722/).
 
 ## Development
 

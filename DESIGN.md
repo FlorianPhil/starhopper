@@ -33,9 +33,9 @@ reliability decision.
 - Large Play/Pause control.
 - Visible playback state and current mode.
 - Five flight modes, including Emergency.
-- Three pre-rendered energy buttons.
+- Sound banks above the optional soundtrack.
 - Operation SFX buttons from real processed source sounds.
-- Tap-to-transmit ship radio and crew reports.
+- One tap triggers a decoded sample over any playing music.
 - Offline saving and a local Emergency soundtrack picker under Before the ride.
 
 All controls must be thumb-sized and readable on mobile. Avoid precision
@@ -49,7 +49,7 @@ run page-load choreography.
 
 ## Implementation bans
 
-- WebAudio and Tone.
+- Runtime synthesis and third-party audio frameworks.
 - GSAP.
 - Canvas.
 - Multiple concurrent music beds.

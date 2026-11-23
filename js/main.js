@@ -7,15 +7,9 @@ const modes = {
   warp: ["Warp", "Beyond light speed", "#d7aafa"],
   emergency: ["Emergency", "Red alert", "#ffa18e"],
 };
-const reports = ["comet", "cookies", "wormhole", "nebula", "signal", "boost"];
 const el = (id) => document.getElementById(id);
 const player = el("player");
 let mode = "combat";
-let drive = "glide";
-let cue = null;
-let returnToMusic = false;
-let musicPosition = 0;
-let report = 0;
 let generation = 0;
 let wantsPlay = false;
 let privateTheme = null;
@@ -23,37 +17,31 @@ let sourceEvents;
 let phase = "On standby";
 
 function musicFile() {
-  if (mode === "emergency")
-    return privateTheme || "audio/mix/combat-overdrive.mp3";
-  return "audio/mix/" + mode + "-" + drive + ".mp3";
+  const file =
+    mode === "emergency"
+      ? "audio/mix/combat-overdrive.mp3"
+      : "audio/mix/" + mode + "-glide.mp3";
+  if (mode === "emergency" && privateTheme) return privateTheme;
+  return window.tripMusic?.[mode] || file;
 }
 
 function render() {
   const [name, caption, accent] = modes[mode];
   document.documentElement.style.setProperty("--accent", accent);
   el("title").textContent = name;
-  el("caption").textContent = cue ? "Ship radio · " + cue : caption;
+  el("caption").textContent = caption;
   el("state").textContent = phase;
-  el("action").textContent = wantsPlay ? "Pause" : "Play " + (cue || name);
+  el("action").textContent = wantsPlay ? "Pause" : "Play " + name;
   el("glyph").textContent = wantsPlay ? "Ⅱ" : "▶";
   document
     .querySelectorAll("[data-mode]")
     .forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === mode));
-  document.querySelectorAll("[data-drive]").forEach((b) => {
-    b.disabled = mode === "emergency";
-    b.setAttribute(
-      "aria-pressed",
-      mode === "emergency"
-        ? !privateTheme && b.dataset.drive === "overdrive"
-        : b.dataset.drive === drive,
-    );
-  });
   if ("mediaSession" in navigator) {
     navigator.mediaSession.playbackState =
       wantsPlay && !player.paused ? "playing" : "paused";
     if (window.MediaMetadata)
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: cue || name,
+        title: name,
         artist: "Starhopper",
         album: "SH-7 Flight deck",
       });
@@ -89,7 +77,7 @@ function loadSource(file, start, autoplay) {
   sourceEvents?.abort();
   sourceEvents = new AbortController();
   const options = { signal: sourceEvents.signal };
-  player.loop = !cue;
+  player.loop = true;
   player.src = file;
   if (start > 0)
     player.addEventListener(
@@ -126,7 +114,13 @@ function loadSource(file, start, autoplay) {
   player.addEventListener(
     "pause",
     () => {
-      if (!wantsPlay || !player.paused || player.ended || player.readyState === 0) return;
+      if (
+        !wantsPlay ||
+        !player.paused ||
+        player.ended ||
+        player.readyState === 0
+      )
+        return;
       ++generation;
       wantsPlay = false;
       phase = "Paused";
@@ -144,15 +138,6 @@ function loadSource(file, start, autoplay) {
     },
     options,
   );
-  player.addEventListener(
-    "ended",
-    () => {
-      if (!cue || !player.ended) return;
-      cue = null;
-      loadSource(musicFile(), musicPosition, returnToMusic);
-    },
-    options,
-  );
   wantsPlay = false;
   phase = "On standby";
   if (autoplay) play();
@@ -167,10 +152,8 @@ function resume() {
 }
 
 function selectMode(next) {
-  if (next === mode && !cue) return;
-  const autoplay = cue ? returnToMusic && wantsPlay : wantsPlay;
-  cue = null;
-  musicPosition = 0;
+  if (next === mode) return;
+  const autoplay = wantsPlay;
   mode = next;
   loadSource(musicFile(), 0, autoplay);
 }
@@ -180,41 +163,6 @@ el("modes").onclick = (event) => {
   const button = event.target.closest("[data-mode]");
   if (button) selectMode(button.dataset.mode);
 };
-el("drives").onclick = (event) => {
-  const button = event.target.closest("[data-drive]");
-  if (!button || button.disabled || drive === button.dataset.drive) return;
-  const autoplay = cue ? returnToMusic && wantsPlay : wantsPlay;
-  const ratio =
-    !cue && player.duration ? player.currentTime / player.duration : 0;
-  cue = null;
-  drive = button.dataset.drive;
-  loadSource(musicFile(), 0, autoplay);
-  if (ratio)
-    player.addEventListener(
-      "loadedmetadata",
-      () => {
-        if (Number.isFinite(player.duration))
-          player.currentTime = ratio * player.duration;
-      },
-      { once: true, signal: sourceEvents.signal },
-    );
-};
-el("cues").onclick = (event) => {
-  const button = event.target.closest("[data-cue]");
-  if (!button || (cue === button.textContent && wantsPlay)) return;
-  if (!cue) {
-    returnToMusic = wantsPlay;
-    musicPosition = player.currentTime;
-  } else if (!wantsPlay) returnToMusic = false;
-  cue = button.textContent;
-  const key = button.dataset.cue;
-  const file =
-    key === "voice"
-      ? "voice/v_evt_" + reports[report++ % reports.length]
-      : "ops/" + key;
-  loadSource("audio/" + file + ".mp3", 0, true);
-};
-
 if (navigator.audioSession) {
   try {
     navigator.audioSession.type = "playback";
@@ -253,7 +201,7 @@ async function useTheme(blob, name) {
   const old = privateTheme;
   privateTheme = URL.createObjectURL(blob);
   el("theme-note").textContent = "Emergency soundtrack: " + name;
-  if (mode === "emergency" && !cue) loadSource(privateTheme, 0, wantsPlay);
+  if (mode === "emergency") loadSource(privateTheme, 0, wantsPlay);
   if (old) URL.revokeObjectURL(old);
 }
 async function restoreTheme() {

@@ -3,7 +3,11 @@
   const status = document.querySelector("#offline-status");
   if (!button || !status) return;
 
-  const totalExpectedFiles = 24;
+  if (window.tripPack) {
+    button.hidden = true;
+    status.textContent = "Music and sounds are included in this file.";
+    return;
+  }
   let registration;
   let saving = false;
 
@@ -42,7 +46,7 @@
     saving = true;
     button.disabled = true;
     button.textContent = "Saving...";
-    status.textContent = `Saving audio for offline use. 0 of ${totalExpectedFiles} files verified.`;
+    status.textContent = `Preparing trip download.`;
     try {
       if (!registration) await initialize();
       const worker = registration?.active || navigator.serviceWorker.controller;
